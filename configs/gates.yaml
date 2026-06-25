@@ -1,0 +1,28 @@
+# Gate ledger (Doc 00 sections 0 & 3.1). Readiness is a lookup against this
+# ledger, not a run-to-run DAG. A row whose `depends_on` gate is `satisfied:
+# true` resolves to Ready; otherwise Blocked.
+#
+# There are exactly three gate keys in the manifest's depends_on column:
+#   H2  -- harness validated on the smoke set    (set by Build Step 1)
+#   G3  -- grounded chunk-level graph frozen      (set by Build Step 2)
+#   P3  -- CA-RRF results + oracle rerank labels   (set by Build Step 5)
+#
+# Flip `satisfied` to true only when the step's go/no-go exit criteria pass.
+# `evidence` points at the artifact that justifies the flip (auditable).
+
+gates:
+  H2:
+    name: harness
+    satisfied: false
+    unblocks: all baseline/main rows
+    evidence: null   # e.g. results/smoke/H2_report.json
+  G3:
+    name: grounded graph
+    satisfied: false
+    unblocks: every graph-touching condition (Graph-only, all Hybrid-*)
+    evidence: null   # e.g. /vol/graph/graph_hash.txt
+  P3:
+    name: gate + oracle labels
+    satisfied: false
+    unblocks: Hybrid-CARRF-CARe
+    evidence: null   # e.g. results/oracle/P3_labels.parquet

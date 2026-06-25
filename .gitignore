@@ -1,0 +1,23 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.venv/
+
+# Secrets — never commit. NIM / RunPod keys live in an untracked .env.
+.env
+*.key
+secrets/
+
+# Run artifacts live on the RunPod Network Volume, not in git.
+results/per-run/
+results/smoke/
+results/*.parquet
+figures/*.png
+figures/*.pdf
+
+# Benchmark data + corpora are large and reused from MedRAG; not in git.
+data/
+*.jsonl
+!tests/**/*.jsonl

@@ -1,0 +1,28 @@
+# Base config (Doc 00 section 2). The ONE embedding checkpoint, the frozen
+# prompt set, decoding params, and default retrieval depth shared by every run.
+# Every run-record asserts it shares this checkpoint with its comparison group
+# (kills the "embedding named two ways" defect, Doc 1 section 6).
+#
+# A run's effective config = base (+) condition (+) benchmark (+) backbone (+) {seed}.
+
+embedding_checkpoint:
+  model: nvidia/llama-3.2-nv-embedqa-1b-v2   # single fixed checkpoint; TODO confirm exact id
+  dim: 1024
+  provider: NIM
+
+prompt_set:
+  # Prompt templates are frozen and held identical across all arms (prompt parity).
+  version: v1
+  # hash is filled by lock.py once templates exist under generate/.
+
+decoding:
+  temperature: 0.0
+  top_p: 1.0
+  max_tokens: 512
+  seed_is_authoritative: true   # decoding seed comes from the run's `seed` dimension
+
+retrieval:
+  default_retr_depth_k: 10      # per-condition retr_depth_k overrides this
+
+tracking:
+  sinks: [parquet, duckdb]      # D2 default: canonical Parquet+DuckDB; MLflow/W&B off

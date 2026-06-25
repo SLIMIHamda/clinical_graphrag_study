@@ -1,0 +1,32 @@
+[project]
+name = "medgraphrag-journal"
+version = "0.0.1"
+description = "Hybrid Graph-RAG for Medical QA — journal upgrade: runner, manifest, and stats harness."
+requires-python = ">=3.11"
+dependencies = [
+    "openpyxl>=3.1",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+# Heavier layers wired in later build steps (tracking, data, retrieval):
+tracking = ["duckdb>=1.0", "pyarrow>=16.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["mgr", "manifest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
