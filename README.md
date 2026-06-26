@@ -24,7 +24,8 @@ GPU/API needed until the cloud smoke.
 | `mgr/tracking/{record,store}.py` | run-record schema; JSON + per-item JSONL + Parquet; DuckDB views |
 | `mgr/clients/{openai_compat,nim,vllm}.py` | rate-limited clients; NIM refuses generation; vLLM for 70B |
 | `mgr/generate/{prompts,extract,executor}.py` | frozen prompts; answer normalization; the generate→score loop |
-| `mgr/metrics/{cost,generation}.py` | token cost meter; EM / token-F1 / accuracy / coverage |
+| `mgr/metrics/{cost,generation,retrieval}.py` | cost meter; EM/F1/accuracy; Recall@k/Precision@k/MRR/nDCG |
+| `mgr/stats/rgd.py` | **RGD** (C1): retrieval-gain vs generation-gain decomposition |
 | `mgr/eval/answer_format_audit.py` | gates EM/F1 across arms (kills the EM 0→0.76 artifact) |
 | `mgr/retrieval/{base,bm25,factory}.py` | retriever interface; Okapi BM25; condition→retriever wiring |
 | `mgr/retrieval/{rrf,ca_rrf}.py` | RRF fusion + **CA-RRF** (C2): concept-overlap list, isolable ablation |
