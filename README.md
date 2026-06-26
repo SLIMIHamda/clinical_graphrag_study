@@ -25,6 +25,7 @@ GPU/API needed until the cloud smoke.
 | `mgr/clients/{openai_compat,nim,vllm}.py` | rate-limited clients; NIM refuses generation; vLLM for 70B |
 | `mgr/generate/{prompts,extract,executor}.py` | frozen prompts; answer normalization; the generate→score loop |
 | `mgr/metrics/{cost,generation,retrieval}.py` | cost meter; EM/F1/accuracy; Recall@k/Precision@k/MRR/nDCG |
+| `mgr/metrics/grounding_ragas.py` | real RAGAS: faithfulness, answer relevance, context precision/recall |
 | `mgr/stats/rgd.py` | **RGD** (C1): retrieval-gain vs generation-gain decomposition |
 | `mgr/eval/answer_format_audit.py` | gates EM/F1 across arms (kills the EM 0→0.76 artifact) |
 | `mgr/retrieval/{base,bm25,factory}.py` | retriever interface; Okapi BM25; condition→retriever wiring |
@@ -67,11 +68,22 @@ A `PASS` means: deterministic run, ids match the manifest, both arms processed
 200 items, metrics emitted. Then set `gates.H2.satisfied: true` in
 `configs/gates.yaml` to unblock the baseline rows.
 
-## Next build steps
+## Status: offline pipeline complete (111 tests)
 
-- **B0 cross-check:** validate No-RAG/BM25 metrics against published MedRAG.
-- **Step 2 (gate G3):** `mgr/graph/` — Neo4j build, chunk-level anchors, UMLS
-  grounding + coverage curve; freeze `graph_hash`. Unblocks graph + hybrid arms.
-- **Step 3–5:** dense (MedCPT), RRF/CA-RRF fusion, CARe gate, model zoo.
-- **Stats:** `mgr/stats/` — bootstrap CIs, ≥100k-perm exact p, Holm, effect size.
-- **Infra:** `infra/runpod/` lifecycle scripts + idle pod guard.
+Everything buildable without real data, a judge model, or a GPU is done and
+tested: the harness, all retrieval arms (No-RAG, BM25, dense, CA-RRF fusion,
+every hybrid via FusionRetriever), UMLS grounding, the CARe gate, all metric
+families (generation, retrieval, cost, RAGAS), the answer-format audit, and the
+full stats layer (CIs, exact-p permutation, Holm, effect sizes, RGD). All three
+contributions (C1 RGD, C2 CA-RRF, C3 CARe) have tested core logic.
+
+## Remaining — data / cloud phase
+
+- **Neo4j graph build + traversal retriever** — needs Neo4j + the corpus
+  (LLM triple extraction via NIM). The grounding half is done; storage/traversal
+  needs the DB. Sets gate **G3**.
+- **Data:** MIRAGE→JSONL converter + `fetch_data.sh` (corpora/embeddings → `/vol`).
+- **NIM judge adapter** for RAGAS (runtime); **figures** (need results);
+  **B0 cross-check** vs published MedRAG.
+- **Infra (last):** `infra/runpod/` up/serve/down + idle pod guard, then the
+  70B sweep on the A100.
