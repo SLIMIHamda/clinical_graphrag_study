@@ -27,6 +27,7 @@ GPU/API needed until the cloud smoke.
 | `mgr/metrics/{cost,generation}.py` | token cost meter; EM / token-F1 / accuracy / coverage |
 | `mgr/eval/answer_format_audit.py` | gates EM/F1 across arms (kills the EM 0→0.76 artifact) |
 | `mgr/retrieval/{base,bm25,factory}.py` | retriever interface; Okapi BM25; condition→retriever wiring |
+| `mgr/retrieval/{rrf,ca_rrf}.py` | RRF fusion + **CA-RRF** (C2): concept-overlap list, isolable ablation |
 | `mgr/data/loader.py` | benchmark JSONL loader |
 | `mgr/smoke.py` + `scripts/smoke.sh` | the Step 1 go/no-go (No-RAG + BM25) → gate H2 |
 
