@@ -32,3 +32,21 @@ class NullRetriever:
 
     def retrieve(self, query: str, *, depth_k: int = 10) -> RetrievalResult:
         return RetrievalResult()
+
+
+def render_context(ids: list[str], passages: dict[str, str], max_chars: int) -> str | None:
+    """Concatenate retrieved passages into a prompt context block, char-capped.
+
+    Shared by the dense/graph/fusion retrievers so the rendered context format is
+    identical across arms (prompt parity).
+    """
+    out, used = [], 0
+    for did in ids:
+        txt = passages.get(did)
+        if txt is None:
+            continue
+        if used + len(txt) > max_chars:
+            break
+        out.append(f"[{did}] {txt}")
+        used += len(txt)
+    return "\n\n".join(out) if out else None
