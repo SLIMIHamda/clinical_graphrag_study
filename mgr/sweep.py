@@ -126,3 +126,75 @@ def run_sweep(
     if skipped:
         print(f"[sweep] skipped unwired conditions: {skipped}")
     return out
+
+
+# --------------------------------------------------------------------------- #
+# Runtime entrypoint: assemble Resources from env + /vol artifacts and sweep.
+# Wires whatever is available; conditions whose components are missing are
+# skipped by run_sweep. (Not unit-tested — it needs real artifacts/services.)
+# --------------------------------------------------------------------------- #
+
+def build_resources_from_env() -> "Resources":
+    import os
+
+    from mgr.clients.vllm import VLLMClient
+
+    gen = VLLMClient(base_url=os.environ.get("VLLM_BASE_URL", "http://localhost:8000"),
+                     api_key=os.environ.get("VLLM_API_KEY"))
+    retrievers: dict[str, Retriever] = {}
+    passages: dict[str, str] = {}
+
+    corpus = os.environ.get("CORPUS")
+    if corpus and Path(corpus).exists():
+        from mgr.retrieval.bm25 import BM25Index, BM25Retriever
+        from mgr.smoke import load_corpus
+
+        records = load_corpus(corpus)
+        retrievers["lexical"] = BM25Retriever(BM25Index.from_records(records))
+        passages.update({str(r["id"]): str(r["text"]) for r in records})
+
+    nim_key = os.environ.get("NIM_API_KEY")
+    dense_emb = os.environ.get("DENSE_EMB")  # .npy matrix
+    dense_ids = os.environ.get("DENSE_IDS")  # newline-delimited ids
+    if nim_key and dense_emb and dense_ids and Path(dense_emb).exists():
+        import numpy as np
+
+        from mgr.clients.nim import NimClient
+        from mgr.clients.nim_adapters import NimEmbedder
+        from mgr.retrieval.dense import DenseIndex, DenseRetriever
+
+        embedder = NimEmbedder(NimClient(base_url=os.environ["NIM_BASE_URL"], api_key=nim_key))
+        ids_list = Path(dense_ids).read_text(encoding="utf-8").split()
+        index = DenseIndex.from_embeddings(ids_list, np.load(dense_emb))
+        retrievers["dense"] = DenseRetriever(index, embedder, passages)
+
+    return Resources(
+        gen_client=gen,
+        data_root=os.environ.get("DATA_ROOT", "data"),
+        passages=passages,
+        retrievers=retrievers,
+        n_items=(int(os.environ["N_ITEMS"]) if os.environ.get("N_ITEMS") else None),
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    from manifest.manifest import load_manifest
+    from manifest.manifest import load_gate_ledger
+
+    ap = argparse.ArgumentParser(description="Run the sweep over Ready rows")
+    ap.add_argument("--results-root", default="results")
+    ap.parse_args(argv)
+
+    m = load_manifest()
+    ledger = load_gate_ledger()
+    resources = build_resources_from_env()
+    records = run_sweep(m, ledger, resources)
+    done = sum(1 for r in records if r.status == "Done")
+    print(f"[sweep] {done}/{len(records)} runs Done")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,9 @@
+{
+  "_note": "PLACEHOLDER ballparks — replace with exact values from the MedRAG/MIRAGE paper before using as a gate. Keys are 'benchmark|condition'.",
+  "MMLU-Med|No-RAG": 0.78,
+  "MMLU-Med|BM25": 0.79,
+  "MedQA-US|No-RAG": 0.70,
+  "MedQA-US|BM25": 0.71,
+  "PubMedQA|No-RAG": 0.36,
+  "PubMedQA|BM25": 0.40
+}

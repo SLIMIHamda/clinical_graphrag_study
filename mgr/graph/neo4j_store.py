@@ -68,5 +68,21 @@ class Neo4jStore:
         rows = self._run("MATCH (c:Chunk {id:$id})-[:MENTIONS]->(k:Concept) RETURN k.cui AS cui", id=chunk_id)
         return {r["cui"] for r in rows}
 
+    def signature(self) -> str:
+        """Stable hash over chunk→concept links and concept edges (graph_hash)."""
+        import hashlib
+
+        rows = self._run(
+            "MATCH (c:Chunk)-[:MENTIONS]->(k:Concept) "
+            "RETURN c.id AS cid, collect(k.cui) AS cuis ORDER BY cid"
+        )
+        edges = self._run(
+            "MATCH (a:Concept)-[:RELATED]->(b:Concept) "
+            "RETURN a.cui AS a, b.cui AS b ORDER BY a, b"
+        )
+        parts = [f"C|{r['cid']}|{','.join(sorted(r['cuis']))}" for r in rows]
+        parts += [f"E|{e['a']}|{e['b']}" for e in edges]
+        return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
+
     def close(self) -> None:
         self._driver.close()

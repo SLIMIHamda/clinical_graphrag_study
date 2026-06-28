@@ -9,7 +9,8 @@ comes up at Step 4, and `with_pod.sh` guarantees it tears down afterward.
 - [ ] RunPod account + a **Network Volume** (note its `VOLUME_ID`).
 - [ ] `cp .env.example .env` and fill in `NIM_API_KEY`, `RUNPOD_API_KEY`,
       `VOLUME_ID`, `NEO4J_PASSWORD`. **Never commit `.env`.**
-- [ ] `pip install -e .[dev,tracking]` and `pytest` → all green.
+- [ ] `pip install -e .[dev]` and `pytest` → all green. (On the pod add `[serve]`
+      for neo4j + vllm.)
 
 ## 1. Get the QA data (local, ~tens of MB)
 - [ ] Download MIRAGE `benchmark.json`, then:

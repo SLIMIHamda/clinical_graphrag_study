@@ -7,6 +7,9 @@ dependencies = [
     "openpyxl>=3.1",
     "pyyaml>=6.0",
     "numpy>=1.26",
+    "duckdb>=1.0",
+    "pyarrow>=16.0",
+    "matplotlib>=3.8",
 ]
 
 [project.optional-dependencies]
@@ -14,8 +17,9 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.6",
 ]
-# Heavier layers wired in later build steps (tracking, data, retrieval):
-tracking = ["duckdb>=1.0", "pyarrow>=16.0"]
+# Runtime-only services (installed on the pod): the NIM/vLLM HTTP clients are
+# stdlib; these are for the graph DB and local serving.
+serve = ["neo4j>=5.20", "vllm>=0.6"]
 
 [build-system]
 requires = ["setuptools>=68"]
