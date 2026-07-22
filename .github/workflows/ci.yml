@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The bug this job exists to catch: `mgr/data/` was matched by an
+      # unanchored `data/` .gitignore pattern and silently left out of every
+      # commit. Local tests passed because the files were on disk; every fresh
+      # clone raised `ModuleNotFoundError: No module named 'mgr.data'`. Assert
+      # the committed tree is importable *before* running anything else.
+      - name: Assert the committed tree is complete
+        run: |
+          set -eux
+          for pkg in mgr mgr/data mgr/clients mgr/graph mgr/retrieval \
+                     mgr/generate mgr/metrics mgr/rerank mgr/stats \
+                     mgr/tracking mgr/eval manifest; do
+            test -f "$pkg/__init__.py" || { echo "MISSING: $pkg/__init__.py"; exit 1; }
+          done
+          git ls-files --error-unmatch \
+            mgr/data/__init__.py mgr/data/loader.py mgr/data/convert_mirage.py
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" || pip install -e . pytest
+
+      # Import from a scratch directory so a stray CWD-relative path cannot
+      # mask a packaging gap.
+      - name: Import check
+        run: cd /tmp && python -c "import mgr.data.loader, mgr.generate.executor, manifest.manifest"
+
+      - name: Tests
+        run: pytest -q

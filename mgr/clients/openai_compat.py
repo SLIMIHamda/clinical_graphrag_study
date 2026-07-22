@@ -97,7 +97,7 @@ class OpenAICompatClient:
     api_key: str | None = None
     rpm: int = 40
     max_retries: int = 6
-    backoff_base_s: float = 1.0
+    backoff_base_s: float = 3.0
     backoff_cap_s: float = 60.0
     transport: Transport = _urllib_transport
     sleep: Callable[[float], None] = time.sleep
@@ -125,9 +125,13 @@ class OpenAICompatClient:
                 attempt += 1
                 if not retryable or attempt > self.max_retries:
                     raise
-                # exponential backoff with full jitter
+                # Exponential backoff with *equal* jitter: half the window is a
+                # hard floor, half is random. Full jitter (uniform(0, wait)) can
+                # return ~0, so a burst of retries lands inside the same
+                # rate-limit window and the 429 propagates as if there had been
+                # no backoff at all — which is what aborted Stage 5 on Kaggle.
                 wait = min(self.backoff_cap_s, self.backoff_base_s * (2 ** (attempt - 1)))
-                self.sleep(random.uniform(0, wait))
+                self.sleep(wait / 2.0 + random.uniform(0, wait / 2.0))
 
     def chat(self, model: str, messages: list[dict[str, str]], **params: Any) -> dict[str, Any]:
         return self._post("/v1/chat/completions", {"model": model, "messages": messages, **params})

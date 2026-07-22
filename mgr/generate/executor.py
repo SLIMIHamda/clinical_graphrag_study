@@ -39,6 +39,12 @@ class RAGExecutor:
     data_root: str | Path
     retriever: Retriever = None  # type: ignore[assignment]
     n_items: int | None = None   # smoke override; None = full benchmark
+    # Retrieval-query cap. Embedding/reranking endpoints reject over-long input
+    # (`HTTP 400: Input length 8850 exceeds maximum allowed token size 4096`),
+    # which used to sink the item, score it wrong, and fail the whole run. The
+    # cap applies to the *retrieval query only* — the generation prompt always
+    # gets the full question, so answer quality is untouched.
+    max_query_chars: int = 6000
 
     def __post_init__(self) -> None:
         if self.retriever is None:
@@ -62,13 +68,14 @@ class RAGExecutor:
         preds: list[str | None] = []
         golds: list[str | None] = []
         tok_in = tok_out = 0
-        error: str | None = None
+        item_errors: list[str] = []
 
         for it in items:
             rr = RetrievalResult()
             raw, usage, latency = "", {"in": 0, "out": 0}, 0.0
+            item_error: str | None = None
             try:
-                rr = self.retriever.retrieve(it.question, depth_k=depth_k)
+                rr = self.retriever.retrieve(it.question[: self.max_query_chars], depth_k=depth_k)
                 msgs = prompts.build_messages(
                     it.question, it.answer_type, options=it.options, context=rr.context
                 )
@@ -76,7 +83,8 @@ class RAGExecutor:
                 raw, usage = self.client.complete_text(model_id, msgs, **decoding)
                 latency = time.time() - t0
             except Exception as e:  # one bad item must not sink the whole run
-                error = f"{type(e).__name__}: {e}"
+                item_error = f"{type(e).__name__}: {e}"
+                item_errors.append(f"{it.qid}: {item_error}")
 
             norm = normalize(raw, it.answer_type)
             tok_in += int(usage.get("in", 0))
@@ -96,20 +104,31 @@ class RAGExecutor:
                     "f1": token_f1(norm, it.gold),
                     "tokens": {"in": int(usage.get("in", 0)), "out": int(usage.get("out", 0))},
                     "latency_s": latency,
+                    "error": item_error,
                 }
             )
             preds.append(norm)
             golds.append(it.gold)
 
         s = score(preds, golds)
+        # An item that raised is scored as *wrong*, not skipped, so a transport
+        # blip is otherwise indistinguishable from a model mistake. Surface the
+        # count next to the accuracy it depressed.
         metrics = {
             "generation": {
                 "accuracy": s.accuracy,
                 "em": s.em,
                 "f1": s.f1,
                 "coverage": s.coverage,
+                "n_item_errors": len(item_errors),
             }
         }
+        # Keep every failure, not just the last one to be assigned.
+        error = None
+        if item_errors:
+            head = "; ".join(item_errors[:3])
+            more = f" (+{len(item_errors) - 3} more)" if len(item_errors) > 3 else ""
+            error = f"{len(item_errors)}/{len(items)} items failed -> {head}{more}"
         return ExecResult(
             n_items=len(items),
             tokens_in=tok_in,
