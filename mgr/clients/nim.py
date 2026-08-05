@@ -27,7 +27,23 @@ class NimClient:
 
     def __post_init__(self) -> None:
         self._client = OpenAICompatClient(base_url=self.base_url, api_key=self.api_key, rpm=self.rpm)
-        self._rank_path: str | None = None  # resolved on first successful rank()
+        self._rank_endpoint: tuple[str, str] | None = None  # (base_url, path), resolved on first rank()
+        self._extra_clients: dict[str, OpenAICompatClient] = {}
+
+    def _client_for(self, base_url: str) -> OpenAICompatClient:
+        """Reuse the primary client for its own host; lazily build one per extra host.
+
+        Reranking is low-volume and, after the first success, only one endpoint is
+        ever used (it is cached), so the separate token buckets do not race in
+        practice — the probe costs at most a couple of extra requests once.
+        """
+        if base_url.rstrip("/") == self.base_url.rstrip("/"):
+            return self._client
+        if base_url not in self._extra_clients:
+            self._extra_clients[base_url] = OpenAICompatClient(
+                base_url=base_url, api_key=self.api_key, rpm=self.rpm
+            )
+        return self._extra_clients[base_url]
 
     def embeddings(self, model: str, inputs: list[str], **params: Any) -> dict[str, Any]:
         return self._client.embeddings(model, inputs, **params)
@@ -41,18 +57,23 @@ class NimClient:
 
         Returns the raw body, conventionally ``{"rankings": [{"index", "logit"}]}``.
 
-        The two NIM deployments expose reranking at *different* paths, and the
-        wrong one answers ``HTTP 404: 404 page not found`` (which the fusion
-        retriever then silently degrades past, so the cross-encoder never runs
-        and C3 measures a token-overlap fallback instead):
+        NVIDIA exposes reranking for these QA models at *different hosts and
+        paths*, and hitting the wrong one answers ``HTTP 404: 404 page not
+        found`` (a Go-gateway default). The fusion retriever silently degrades
+        past that to a token-overlap fallback, so the cross-encoder never runs
+        and C3 measures the fallback instead — which is exactly what happened in
+        the 2026-07 POC runs, where ``integrate.api.nvidia.com/v1/ranking`` 404'd
+        for ``nv-rerankqa-mistral-4b-v3``. The documented endpoints are:
 
-          hosted  build.nvidia.com / integrate.api.nvidia.com
-                  -> ``/v1/retrieval/{model}/reranking``
-          self-hosted NIM container
-                  -> ``/v1/ranking``
+          OpenAI-style gateway / self-hosted container
+                  -> ``{base_url}/v1/ranking``
+          hosted retrieval NIM (the QA rerank models live here)
+                  -> ``https://ai.api.nvidia.com/v1/retrieval/{model}/reranking``
 
-        We try the hosted path first, fall back to the container path on 404,
-        and remember whichever answered so later calls cost one request.
+        We try each once, fall through to the next on 404, and cache whichever
+        answered so later calls cost a single request. The request/response
+        contract (``query.text`` / ``passages[].text`` -> ``rankings[]``) is the
+        same across hosts, so the payload is shared.
 
         ``truncate="END"`` is sent by default so an over-long passage is clipped
         server-side rather than returning ``HTTP 400: Input length ... exceeds
@@ -64,15 +85,21 @@ class NimClient:
             "passages": [{"text": p} for p in passages],
             **{"truncate": "END", **params},
         }
-        candidates = [f"/v1/retrieval/{model}/reranking", "/v1/ranking"]
-        if self._rank_path is not None:
-            candidates = [self._rank_path]
+        base = self.base_url.rstrip("/")
+        # (base_url, path) candidates, most-likely-correct first to minimise probes.
+        candidates: list[tuple[str, str]] = [
+            (base, "/v1/ranking"),
+            ("https://ai.api.nvidia.com", f"/v1/retrieval/{model}/reranking"),
+            (base, f"/v1/retrieval/{model}/reranking"),
+        ]
+        if self._rank_endpoint is not None:
+            candidates = [self._rank_endpoint]
 
         last: TransportError | None = None
-        for path in candidates:
+        for cand_base, path in candidates:
             try:
-                body = self._client._post(path, payload)
-                self._rank_path = path
+                body = self._client_for(cand_base)._post(path, payload)
+                self._rank_endpoint = (cand_base, path)
                 return body
             except TransportError as e:
                 if e.status != 404:

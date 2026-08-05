@@ -86,41 +86,59 @@ def test_nim_refuses_generation():
         nim.chat("model", [{"role": "user", "content": "x"}])
 
 
-def _rank_client(serving_path: str):
-    """A NimClient whose fake transport only answers on ``serving_path``."""
+def _rank_client(serving_url: str):
+    """A NimClient whose fake transport only answers on ``serving_url``.
+
+    The transport is shared across every per-host client the NimClient builds,
+    so probes against ai.api.nvidia.com are observed too.
+    """
     seen: list[str] = []
 
     def transport(url, headers, payload):
         seen.append(url)
-        if url.endswith(serving_path):
+        if url == serving_url:
             return Response(200, {"rankings": [{"index": 0, "logit": 1.0}]})
         raise TransportError(404, "404 page not found")
 
-    nim = NimClient(base_url="http://nim", api_key="k")
+    nim = NimClient(base_url="https://integrate.api.nvidia.com", api_key="k")
     nim._client = OpenAICompatClient(
-        base_url="http://nim", api_key="k", transport=transport, sleep=lambda s: None, rpm=1000
+        base_url="https://integrate.api.nvidia.com", api_key="k",
+        transport=transport, sleep=lambda s: None, rpm=1000,
     )
+    # every lazily-built per-host client must use the same fake transport
+    orig = nim._client_for
+
+    def patched(base_url):
+        c = orig(base_url)
+        c.transport = transport
+        c.sleep = lambda s: None
+        return c
+
+    nim._client_for = patched
     return nim, seen
 
 
-def test_rank_uses_hosted_retrieval_path():
-    nim, seen = _rank_client("/v1/retrieval/some/model/reranking")
+def test_rank_uses_ranking_path_first():
+    """The documented gateway/container endpoint is tried first."""
+    nim, seen = _rank_client("https://integrate.api.nvidia.com/v1/ranking")
     out = nim.rank("some/model", "q", ["p"])
     assert out["rankings"][0]["index"] == 0
-    assert seen == ["http://nim/v1/retrieval/some/model/reranking"]
+    assert seen == ["https://integrate.api.nvidia.com/v1/ranking"]
 
 
-def test_rank_falls_back_to_container_path_on_404():
-    """A hosted-vs-self-hosted path mismatch used to surface as a bare 404,
-    which the fusion retriever swallowed — so C3 silently measured a
-    token-overlap fallback instead of the cross-encoder."""
-    nim, seen = _rank_client("/v1/ranking")
+def test_rank_falls_back_to_ai_host_on_404():
+    """When the gateway 404s, the hosted retrieval NIM on ai.api.nvidia.com is
+    tried — the mismatch used to surface as a bare 404 the fusion retriever
+    swallowed, so C3 silently measured a token-overlap fallback."""
+    target = "https://ai.api.nvidia.com/v1/retrieval/some/model/reranking"
+    nim, seen = _rank_client(target)
     out = nim.rank("some/model", "q", ["p"])
     assert out["rankings"][0]["index"] == 0
-    assert seen[-1] == "http://nim/v1/ranking"
-    # and the resolved path is remembered, so the next call costs one request
+    assert seen[0] == "https://integrate.api.nvidia.com/v1/ranking"  # probed first
+    assert seen[-1] == target
+    # the resolved endpoint is cached, so the next call costs one request
     nim.rank("some/model", "q", ["p"])
-    assert seen[-2:] == ["http://nim/v1/ranking", "http://nim/v1/ranking"]
+    assert seen[-1] == target and len(seen) == 3
 
 
 def test_rank_truncates_by_default():
@@ -140,7 +158,7 @@ def test_rank_truncates_by_default():
 
 
 def test_rank_does_not_retry_a_real_error():
-    """Only 404 triggers the path probe; anything else propagates."""
+    """Only 404 triggers the endpoint probe; anything else propagates."""
 
     def transport(url, headers, payload):
         raise TransportError(401, "unauthorized")
