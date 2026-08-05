@@ -53,6 +53,11 @@ class RAGExecutor:
     def __call__(self, row: RunRow, cfg: dict[str, Any]) -> ExecResult:
         benchmark_type = str(cfg["benchmark"].get("type", "MCQ"))
         model_id = str(cfg["backbone"]["model_id"])
+        # The manifest hands us the contract model_id (e.g. the 70B), but a
+        # pinned client (the POC's NimGenerationClient) may serve a different,
+        # cheaper model regardless. Record whatever the client will actually use
+        # so the run-record's gen_model is truthful, not the manifest's wish.
+        gen_model = str(getattr(self.client, "model", "") or model_id)
         depth_k = int(row.retr_depth_k) if str(row.retr_depth_k).isdigit() else 10
         decoding = dict(cfg["base"].get("decoding", {}))
         decoding.pop("seed_is_authoritative", None)
@@ -137,4 +142,5 @@ class RAGExecutor:
             items=out_items,
             error=error,
             expected_n_items=expected_n_items,
+            gen_model=gen_model,
         )

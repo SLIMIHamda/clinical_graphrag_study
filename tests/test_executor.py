@@ -71,6 +71,47 @@ def test_norag_executor_through_runner(fixture_data, tmp_path):
     assert {"em", "f1", "gold", "latency_s", "tokens"} <= set(first)
 
 
+class PinnedModelClient(FakeGenClient):
+    """A client that serves its own pinned model regardless of the id passed —
+    like the POC's NimGenerationClient substituting an 8B for the 70B row."""
+
+    def __init__(self, model, answer="B"):
+        super().__init__(answer=answer)
+        self.model = model
+
+
+def test_record_stamps_actual_gen_model_not_just_backbone(fixture_data, tmp_path):
+    """The manifest row is a Llama-70B contract, but generation ran on an 8B.
+    The record must carry both: backbone (contract) and gen_model (what ran)."""
+    client = PinnedModelClient("meta/llama-3.1-8b-instruct", answer="B")
+    execu = RAGExecutor(client=client, data_root=fixture_data, n_items=10)
+    runner = Runner(
+        manifest=load_manifest(),
+        gate_ledger={"H2": True, "G3": False, "P3": False},
+        results_root=tmp_path / "results",
+    )
+    record = runner.run_one("R0001", executor=execu)  # R0001 is a Llama-70B row
+
+    assert record.backbone == "Llama-70B"                      # manifest contract, unchanged
+    assert record.gen_model == "meta/llama-3.1-8b-instruct"    # what actually ran
+    # and it round-trips through the written record file
+    reread = rec.read_record("R0001", runner.results_root)
+    assert reread.gen_model == "meta/llama-3.1-8b-instruct"
+
+
+def test_gen_model_falls_back_to_manifest_model_id(fixture_data, tmp_path):
+    """With no pinned client model, gen_model is the manifest's model_id — so a
+    real 70B sweep records the 70B, not an empty string."""
+    execu = RAGExecutor(client=FakeGenClient(answer="B"), data_root=fixture_data, n_items=10)
+    runner = Runner(
+        manifest=load_manifest(),
+        gate_ledger={"H2": True, "G3": False, "P3": False},
+        results_root=tmp_path / "results",
+    )
+    record = runner.run_one("R0001", executor=execu)
+    assert record.gen_model == "meta/llama-3.3-70b-instruct"   # Llama-70B backbone's model_id
+
+
 class FlakyRetriever:
     """Raises on the questions in ``fail_on``; empty result otherwise."""
 

@@ -43,6 +43,7 @@ class ExecResult:
     items: list[dict[str, Any]] = field(default_factory=list)
     error: str | None = None
     expected_n_items: int | None = None
+    gen_model: str | None = None  # model that actually generated (see RunRecord.gen_model)
 
 
 # An Executor maps (row, effective_config) -> ExecResult.
@@ -156,6 +157,7 @@ class Runner:
                 items_path=items_p.as_posix() if items_p else None,
                 error=result.error,
                 executor="stub" if executor is stub_executor else "real",
+                gen_model=result.gen_model,
             )
 
             # Done requires the run to have processed everything it intended to

@@ -66,6 +66,13 @@ class RunRecord:
     env_lock_hash: str | None = None
     error: str | None = None
     executor: str = "stub"  # which executor produced this record (stub | real)
+    # The model that ACTUALLY generated, which may differ from ``backbone``.
+    # ``backbone`` names the manifest-contract row (e.g. "Llama-70B"); the POC
+    # deliberately substitutes a cheaper model (e.g. meta/llama-3.1-8b-instruct)
+    # for cost. Recording both keeps provenance honest and auditable — a record
+    # is no longer silently stamped with a model that never ran. None on stub
+    # runs and on records written before this field existed.
+    gen_model: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
