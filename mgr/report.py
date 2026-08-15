@@ -30,11 +30,16 @@ from typing import Any
 ARTIFACTS = {
     "summary": "artifacts/poc_summary.json",
     "arms": "artifacts/arm_metrics.csv",
+    "rescue": "artifacts/rescue.json",
     "gates": "artifacts/gate_ledger.json",
     "graph": "artifacts/graph_report.json",
     "oracle": "artifacts/care_oracle.json",
     "ragas": "artifacts/ragas.json",
 }
+RESCUE_COLS = [
+    "condition", "n_items", "arm_acc", "base_acc", "base_wrong", "rescues",
+    "rescue_rate", "base_right", "breaks", "break_rate", "net_items", "net_acc_delta",
+]
 FIGURES = [
     ("F3 — Retrieval–Generation Decomposition (C1)", "figures/F3_rgd.png"),
     ("F4 — CARe cost–quality frontier (C3)", "figures/F4_pareto.png"),
@@ -113,6 +118,13 @@ def collect(run_dir: str | Path) -> list[Section]:
         sections.append(Section("Run", present=False))
 
     sections.append(Section("Arms", table=arms) if arms else Section("Arms", present=False))
+
+    resc = a.get("rescue")
+    if isinstance(resc, list) and resc:
+        table = [{c: row.get(c) for c in RESCUE_COLS} for row in resc]
+        sections.append(Section("Retrieval rescue (vs No-RAG)", table=table))
+    else:
+        sections.append(Section("Retrieval rescue (vs No-RAG)", present=False))
 
     g = a.get("gates")
     sections.append(
