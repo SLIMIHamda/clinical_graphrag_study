@@ -32,6 +32,11 @@ def test_rescue_and_break_counts(tmp_path):
     assert r["base_right"] == 2 and r["breaks"] == 1 and r["break_rate"] == 0.5
     assert r["net_items"] == 0 and r["net_acc_delta"] == 0.0
     assert r["arm_acc"] == 0.5 and r["base_acc"] == 0.5
+    # Gate-A oracle: keep No-RAG on q1,q2 (right), take the arm on q3 (rescue) -> 3/4 correct.
+    # Never incurs the q1 break, banks the q3 rescue.
+    assert r["oracle_acc"] == 0.75
+    assert r["oracle_gain_vs_norag"] == 0.25  # == rescues / n_items
+    assert r["oracle_gain_vs_arm"] == 0.25    # the break the gate avoids
 
 
 def test_pools_across_seeds_and_ranks_by_net(tmp_path):

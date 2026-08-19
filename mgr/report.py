@@ -40,6 +40,10 @@ RESCUE_COLS = [
     "condition", "n_items", "arm_acc", "base_acc", "base_wrong", "rescues",
     "rescue_rate", "base_right", "breaks", "break_rate", "net_items", "net_acc_delta",
 ]
+ORACLE_COLS = [
+    "condition", "n_items", "base_acc", "arm_acc", "oracle_acc",
+    "oracle_gain_vs_norag", "oracle_gain_vs_arm",
+]
 FIGURES = [
     ("F3 — Retrieval–Generation Decomposition (C1)", "figures/F3_rgd.png"),
     ("F4 — CARe cost–quality frontier (C3)", "figures/F4_pareto.png"),
@@ -123,6 +127,9 @@ def collect(run_dir: str | Path) -> list[Section]:
     if isinstance(resc, list) and resc:
         table = [{c: row.get(c) for c in RESCUE_COLS} for row in resc]
         sections.append(Section("Retrieval rescue (vs No-RAG)", table=table))
+        if all("oracle_acc" in row for row in resc):
+            oracle = [{c: row.get(c) for c in ORACLE_COLS} for row in resc]
+            sections.append(Section("Gate-A retrieval oracle (selective-retrieval ceiling)", table=oracle))
     else:
         sections.append(Section("Retrieval rescue (vs No-RAG)", present=False))
 

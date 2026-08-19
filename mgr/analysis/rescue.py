@@ -42,6 +42,13 @@ class ArmRescue:
     break_rate: float
     net_items: int        # rescues - breaks
     net_acc_delta: float  # net_items / n_items
+    # Gate-A oracle: a perfect when-to-retrieve gate keeps No-RAG on items it got
+    # right and switches to the arm only when No-RAG was wrong -- so it never incurs
+    # a break and banks every rescue. This is the *ceiling* of selective retrieval
+    # over {No-RAG, this arm}, not a realizable policy (it needs per-item hindsight).
+    oracle_acc: float            # mean of max(base, arm) per item = (base_right + rescues) / n
+    oracle_gain_vs_norag: float  # oracle_acc - base_acc  (== rescues / n_items)
+    oracle_gain_vs_arm: float    # oracle_acc - arm_acc   (breaks the arm avoids by gating)
 
 
 def _load_arm_items(run_dir: Path) -> dict[str, dict[tuple[int, str], int]]:
@@ -95,12 +102,15 @@ def rescue_analysis(run_dir: str | Path, *, baseline: str = "No-RAG") -> list[di
         right = [k for k in keys if base[k] == 1]
         rescues = sum(1 for k in wrong if items[k] == 1)
         breaks = sum(1 for k in right if items[k] == 0)
+        n = len(keys)
+        arm_correct = sum(items[k] for k in keys)
+        oracle_correct = len(right) + rescues  # keep No-RAG when right, else take the arm
         out.append(
             ArmRescue(
                 condition=cond,
-                n_items=len(keys),
-                arm_acc=round(sum(items[k] for k in keys) / len(keys), 4),
-                base_acc=round(sum(base[k] for k in keys) / len(keys), 4),
+                n_items=n,
+                arm_acc=round(arm_correct / n, 4),
+                base_acc=round(len(right) / n, 4),
                 base_wrong=len(wrong),
                 rescues=rescues,
                 rescue_rate=round(rescues / len(wrong), 4) if wrong else 0.0,
@@ -108,7 +118,10 @@ def rescue_analysis(run_dir: str | Path, *, baseline: str = "No-RAG") -> list[di
                 breaks=breaks,
                 break_rate=round(breaks / len(right), 4) if right else 0.0,
                 net_items=rescues - breaks,
-                net_acc_delta=round((rescues - breaks) / len(keys), 4),
+                net_acc_delta=round((rescues - breaks) / n, 4),
+                oracle_acc=round(oracle_correct / n, 4),
+                oracle_gain_vs_norag=round(rescues / n, 4),
+                oracle_gain_vs_arm=round((oracle_correct - arm_correct) / n, 4),
             )
         )
     out.sort(key=lambda a: a.net_items, reverse=True)
