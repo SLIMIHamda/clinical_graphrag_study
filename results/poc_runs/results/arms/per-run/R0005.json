@@ -1,0 +1,46 @@
+{
+  "run_id": "R0005",
+  "slug": "No-RAG__MedQA-US__Llama-70B__s123",
+  "condition": "No-RAG",
+  "benchmark": "MedQA-US",
+  "backbone": "Llama-70B",
+  "seed": 123,
+  "status": "Done",
+  "config_hash": "5d9ffc6be9de9bf9650013ca8da4bf95a2df3488639f53beb5cd2f9af78a8aec",
+  "manifest_lock_hash": null,
+  "code_git_sha": null,
+  "embedding_checkpoint": {
+    "model": "nvidia/llama-3.2-nv-embedqa-1b-v2",
+    "dim": 1024,
+    "provider": "NIM"
+  },
+  "prompt_set_hash": null,
+  "graph_hash": null,
+  "index_hashes": {},
+  "n_items": 256,
+  "started": "2026-08-18T18:39:26.670834+00:00",
+  "finished": "2026-08-18T18:47:43.811982+00:00",
+  "wall_s": 497.1353406906128,
+  "tokens": {
+    "in": 72163,
+    "out": 515,
+    "total": 72678
+  },
+  "cost_est_usd": 0.19094999999999998,
+  "cost_actual_usd": 0.0436068,
+  "metrics": {
+    "generation": {
+      "accuracy": 0.59375,
+      "em": 0.59375,
+      "f1": 0.59375,
+      "coverage": 1.0,
+      "n_item_errors": 0
+    }
+  },
+  "items_path": "/kaggle/working/poc_runs/results/arms/per-run/R0005/items.jsonl",
+  "runpod_pod_id": null,
+  "env_lock_hash": null,
+  "error": null,
+  "executor": "real",
+  "gen_model": "meta/llama-3.1-8b-instruct"
+}

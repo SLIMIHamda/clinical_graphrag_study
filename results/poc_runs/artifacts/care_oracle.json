@@ -1,0 +1,8 @@
+{
+  "n_items": 64,
+  "positive_rate": 0.0625,
+  "rerank_changed_top_k": 64,
+  "acc_with_rerank": 0.5625,
+  "acc_without_rerank": 0.5625,
+  "P3": true
+}

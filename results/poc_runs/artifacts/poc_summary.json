@@ -1,0 +1,31 @@
+{
+  "mode": "NIM",
+  "reranker": "local:ncbi/MedCPT-Cross-Encoder",
+  "generation_actual": "nim:meta/llama-3.1-8b-instruct",
+  "manifest_backbone": "Llama-70B",
+  "gen_model_recorded": [
+    "meta/llama-3.1-8b-instruct"
+  ],
+  "provenance_complete": true,
+  "model_substituted_for_backbone": true,
+  "data_source": "real",
+  "benchmark": "MedQA-US",
+  "umls_source": "scispacy",
+  "conditions": [
+    "No-RAG",
+    "BM25",
+    "Dense-MedCPT",
+    "Graph-only",
+    "Hybrid-CARRF",
+    "Hybrid-CARRF-CARe"
+  ],
+  "n_items": 256,
+  "gates": {
+    "H2": true,
+    "G3": true,
+    "P3": true
+  },
+  "n_runs": 18,
+  "n_arms_failed": 0,
+  "run_dir": "/kaggle/working/poc_runs"
+}

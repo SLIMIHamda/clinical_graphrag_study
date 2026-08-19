@@ -1,0 +1,134 @@
+2026-08-18 17:55:41,977 INFO numexpr.utils: NumExpr defaulting to 4 threads.
+2026-08-18 17:55:44,443 INFO httpx: HTTP Request: HEAD https://huggingface.co/datasets/MedRAG/textbooks/resolve/main/chunk/Anatomy_Gray.jsonl "HTTP/1.1 302 Found"
+2026-08-18 17:55:44,445 WARNING huggingface_hub.utils._http: Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-08-18 17:55:44,543 INFO httpx: HTTP Request: GET https://huggingface.co/api/datasets/MedRAG/textbooks/xet-read-token/9c72838920a1323ffa867467d3f7aa7b36b0f994 "HTTP/1.1 200 OK"
+2026-08-18 17:55:45,490 INFO httpx: HTTP Request: HEAD https://huggingface.co/datasets/MedRAG/textbooks/resolve/main/chunk/Biochemistry_Lippincott.jsonl "HTTP/1.1 302 Found"
+2026-08-18 17:55:46,388 INFO httpx: HTTP Request: HEAD https://huggingface.co/datasets/MedRAG/textbooks/resolve/main/chunk/Cell_Biology_Alberts.jsonl "HTTP/1.1 302 Found"
+2026-08-18 17:55:47,756 INFO httpx: HTTP Request: HEAD https://huggingface.co/datasets/MedRAG/textbooks/resolve/main/chunk/First_Aid_Step1.jsonl "HTTP/1.1 302 Found"
+2026-08-18 17:55:48,257 INFO httpx: HTTP Request: HEAD https://huggingface.co/datasets/MedRAG/textbooks/resolve/main/chunk/First_Aid_Step2.jsonl "HTTP/1.1 302 Found"
+2026-08-18 17:55:48,950 INFO httpx: HTTP Request: HEAD https://huggingface.co/datasets/MedRAG/textbooks/resolve/main/chunk/Gynecology_Novak.jsonl "HTTP/1.1 302 Found"
+2026-08-18 17:55:50,109 INFO httpx: HTTP Request: HEAD https://huggingface.co/datasets/MedRAG/textbooks/resolve/main/chunk/Histology_Ross.jsonl "HTTP/1.1 302 Found"
+2026-08-18 17:55:50,987 INFO httpx: HTTP Request: HEAD https://huggingface.co/datasets/MedRAG/textbooks/resolve/main/chunk/Immunology_Janeway.jsonl "HTTP/1.1 302 Found"
+2026-08-18 17:55:51,708 INFO httpx: HTTP Request: HEAD https://huggingface.co/datasets/MedRAG/textbooks/resolve/main/chunk/InternalMed_Harrison.jsonl "HTTP/1.1 302 Found"
+2026-08-18 17:55:54,300 INFO httpx: HTTP Request: HEAD https://huggingface.co/datasets/MedRAG/textbooks/resolve/main/chunk/Neurology_Adams.jsonl "HTTP/1.1 302 Found"
+2026-08-18 17:55:55,496 INFO httpx: HTTP Request: HEAD https://huggingface.co/datasets/MedRAG/textbooks/resolve/main/chunk/Obstentrics_Williams.jsonl "HTTP/1.1 302 Found"
+2026-08-18 17:55:56,454 INFO httpx: HTTP Request: HEAD https://huggingface.co/datasets/MedRAG/textbooks/resolve/main/chunk/Pathology_Robbins.jsonl "HTTP/1.1 302 Found"
+2026-08-18 17:55:57,284 INFO httpx: HTTP Request: HEAD https://huggingface.co/datasets/MedRAG/textbooks/resolve/main/chunk/Pathoma_Husain.jsonl "HTTP/1.1 302 Found"
+2026-08-18 17:55:57,764 INFO httpx: HTTP Request: HEAD https://huggingface.co/datasets/MedRAG/textbooks/resolve/main/chunk/Pediatrics_Nelson.jsonl "HTTP/1.1 302 Found"
+2026-08-18 17:55:58,694 INFO httpx: HTTP Request: HEAD https://huggingface.co/datasets/MedRAG/textbooks/resolve/main/chunk/Pharmacology_Katzung.jsonl "HTTP/1.1 302 Found"
+2026-08-18 17:55:59,640 INFO httpx: HTTP Request: HEAD https://huggingface.co/datasets/MedRAG/textbooks/resolve/main/chunk/Physiology_Levy.jsonl "HTTP/1.1 302 Found"
+2026-08-18 17:56:00,585 INFO httpx: HTTP Request: HEAD https://huggingface.co/datasets/MedRAG/textbooks/resolve/main/chunk/Psichiatry_DSM-5.jsonl "HTTP/1.1 302 Found"
+2026-08-18 17:56:01,307 INFO httpx: HTTP Request: HEAD https://huggingface.co/datasets/MedRAG/textbooks/resolve/main/chunk/Surgery_Schwartz.jsonl "HTTP/1.1 302 Found"
+2026-08-18 17:56:03,564 WARNING poc: All questions come from ONE subject — retrieval arms will be judged on a corpus that may not cover them. Set CFG.MIRAGE_STRATIFY=True.
+2026-08-18 17:56:24,551 INFO httpx: HTTP Request: HEAD https://huggingface.co/ncbi/MedCPT-Cross-Encoder/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-08-18 17:56:24,569 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/ncbi/MedCPT-Cross-Encoder/71caf65d4927987813984f54c284405a13fcca49/config.json "HTTP/1.1 200 OK"
+2026-08-18 17:56:24,592 INFO httpx: HTTP Request: GET https://huggingface.co/api/resolve-cache/models/ncbi/MedCPT-Cross-Encoder/71caf65d4927987813984f54c284405a13fcca49/config.json "HTTP/1.1 200 OK"
+2026-08-18 17:56:24,658 INFO httpx: HTTP Request: HEAD https://huggingface.co/ncbi/MedCPT-Cross-Encoder/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-08-18 17:56:24,675 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/ncbi/MedCPT-Cross-Encoder/71caf65d4927987813984f54c284405a13fcca49/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-08-18 17:56:24,695 INFO httpx: HTTP Request: GET https://huggingface.co/api/resolve-cache/models/ncbi/MedCPT-Cross-Encoder/71caf65d4927987813984f54c284405a13fcca49/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-08-18 17:56:24,761 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/ncbi/MedCPT-Cross-Encoder/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-08-18 17:56:24,806 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/ncbi/MedCPT-Cross-Encoder/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-08-18 17:56:24,849 INFO httpx: HTTP Request: HEAD https://huggingface.co/ncbi/MedCPT-Cross-Encoder/resolve/main/vocab.txt "HTTP/1.1 307 Temporary Redirect"
+2026-08-18 17:56:24,869 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/ncbi/MedCPT-Cross-Encoder/71caf65d4927987813984f54c284405a13fcca49/vocab.txt "HTTP/1.1 200 OK"
+2026-08-18 17:56:24,887 INFO httpx: HTTP Request: GET https://huggingface.co/api/resolve-cache/models/ncbi/MedCPT-Cross-Encoder/71caf65d4927987813984f54c284405a13fcca49/vocab.txt "HTTP/1.1 200 OK"
+2026-08-18 17:56:24,962 INFO httpx: HTTP Request: HEAD https://huggingface.co/ncbi/MedCPT-Cross-Encoder/resolve/main/tokenizer.json "HTTP/1.1 307 Temporary Redirect"
+2026-08-18 17:56:24,980 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/ncbi/MedCPT-Cross-Encoder/71caf65d4927987813984f54c284405a13fcca49/tokenizer.json "HTTP/1.1 200 OK"
+2026-08-18 17:56:25,000 INFO httpx: HTTP Request: GET https://huggingface.co/api/resolve-cache/models/ncbi/MedCPT-Cross-Encoder/71caf65d4927987813984f54c284405a13fcca49/tokenizer.json "HTTP/1.1 200 OK"
+2026-08-18 17:56:25,070 INFO httpx: HTTP Request: HEAD https://huggingface.co/ncbi/MedCPT-Cross-Encoder/resolve/main/added_tokens.json "HTTP/1.1 307 Temporary Redirect"
+2026-08-18 17:56:25,087 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/ncbi/MedCPT-Cross-Encoder/71caf65d4927987813984f54c284405a13fcca49/added_tokens.json "HTTP/1.1 200 OK"
+2026-08-18 17:56:25,106 INFO httpx: HTTP Request: GET https://huggingface.co/api/resolve-cache/models/ncbi/MedCPT-Cross-Encoder/71caf65d4927987813984f54c284405a13fcca49/added_tokens.json "HTTP/1.1 200 OK"
+2026-08-18 17:56:25,166 INFO httpx: HTTP Request: HEAD https://huggingface.co/ncbi/MedCPT-Cross-Encoder/resolve/main/special_tokens_map.json "HTTP/1.1 307 Temporary Redirect"
+2026-08-18 17:56:25,183 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/ncbi/MedCPT-Cross-Encoder/71caf65d4927987813984f54c284405a13fcca49/special_tokens_map.json "HTTP/1.1 200 OK"
+2026-08-18 17:56:25,202 INFO httpx: HTTP Request: GET https://huggingface.co/api/resolve-cache/models/ncbi/MedCPT-Cross-Encoder/71caf65d4927987813984f54c284405a13fcca49/special_tokens_map.json "HTTP/1.1 200 OK"
+2026-08-18 17:56:25,261 INFO httpx: HTTP Request: HEAD https://huggingface.co/ncbi/MedCPT-Cross-Encoder/resolve/main/chat_template.jinja "HTTP/1.1 404 Not Found"
+2026-08-18 17:56:25,552 INFO httpx: HTTP Request: HEAD https://huggingface.co/ncbi/MedCPT-Cross-Encoder/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-08-18 17:56:25,569 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/ncbi/MedCPT-Cross-Encoder/71caf65d4927987813984f54c284405a13fcca49/config.json "HTTP/1.1 200 OK"
+2026-08-18 17:56:25,613 INFO httpx: HTTP Request: HEAD https://huggingface.co/ncbi/MedCPT-Cross-Encoder/resolve/main/adapter_config.json "HTTP/1.1 404 Not Found"
+2026-08-18 17:56:27,056 INFO httpx: HTTP Request: HEAD https://huggingface.co/ncbi/MedCPT-Cross-Encoder/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-08-18 17:56:27,073 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/ncbi/MedCPT-Cross-Encoder/71caf65d4927987813984f54c284405a13fcca49/config.json "HTTP/1.1 200 OK"
+2026-08-18 17:56:27,133 INFO httpx: HTTP Request: HEAD https://huggingface.co/ncbi/MedCPT-Cross-Encoder/resolve/main/model.safetensors "HTTP/1.1 404 Not Found"
+2026-08-18 17:56:27,176 INFO httpx: HTTP Request: HEAD https://huggingface.co/ncbi/MedCPT-Cross-Encoder/resolve/main/model.safetensors.index.json "HTTP/1.1 404 Not Found"
+2026-08-18 17:56:27,221 INFO httpx: HTTP Request: HEAD https://huggingface.co/ncbi/MedCPT-Cross-Encoder/resolve/main/pytorch_model.bin "HTTP/1.1 302 Found"
+2026-08-18 17:56:27,260 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/ncbi/MedCPT-Cross-Encoder/xet-read-token/71caf65d4927987813984f54c284405a13fcca49 "HTTP/1.1 200 OK"
+2026-08-18 17:56:30,334 INFO httpx: HTTP Request: HEAD https://huggingface.co/ncbi/MedCPT-Cross-Encoder/resolve/main/model.safetensors "HTTP/1.1 404 Not Found"
+2026-08-18 17:56:30,386 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/ncbi/MedCPT-Cross-Encoder "HTTP/1.1 200 OK"
+2026-08-18 17:56:30,450 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/ncbi/MedCPT-Cross-Encoder/commits/main "HTTP/1.1 200 OK"
+2026-08-18 17:56:30,504 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/ncbi/MedCPT-Cross-Encoder/discussions?p=0 "HTTP/1.1 200 OK"
+2026-08-18 17:56:30,570 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/ncbi/MedCPT-Cross-Encoder/commits/refs%2Fpr%2F3 "HTTP/1.1 200 OK"
+2026-08-18 17:56:30,656 INFO httpx: HTTP Request: HEAD https://huggingface.co/ncbi/MedCPT-Cross-Encoder/resolve/refs%2Fpr%2F3/model.safetensors.index.json "HTTP/1.1 404 Not Found"
+2026-08-18 17:56:30,825 INFO httpx: HTTP Request: HEAD https://huggingface.co/ncbi/MedCPT-Cross-Encoder/resolve/refs%2Fpr%2F3/model.safetensors "HTTP/1.1 302 Found"
+2026-08-18 17:56:30,909 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/ncbi/MedCPT-Cross-Encoder/xet-read-token/75e855e5aaeda1e16da04a894207072d4b0db66a "HTTP/1.1 200 OK"
+2026-08-18 18:02:55,133 INFO nmslib: Registering at the factory, space: dummy distance type: INT
+2026-08-18 18:02:55,134 INFO nmslib: Registering at the factory, space: dummy distance type: FLOAT
+2026-08-18 18:02:55,135 INFO nmslib: Registering at the factory, space: bit_hamming distance type: INT
+2026-08-18 18:02:55,136 INFO nmslib: Registering at the factory, space: bit_jaccard distance type: FLOAT
+2026-08-18 18:02:55,137 INFO nmslib: Registering at the factory, space: leven distance type: INT
+2026-08-18 18:02:55,138 INFO nmslib: Registering at the factory, space: normleven distance type: FLOAT
+2026-08-18 18:02:55,138 INFO nmslib: Registering at the factory, space: kldivfast distance type: FLOAT
+2026-08-18 18:02:55,139 INFO nmslib: Registering at the factory, space: kldivfastrq distance type: FLOAT
+2026-08-18 18:02:55,140 INFO nmslib: Registering at the factory, space: kldivgenfast distance type: FLOAT
+2026-08-18 18:02:55,141 INFO nmslib: Registering at the factory, space: kldivgenslow distance type: FLOAT
+2026-08-18 18:02:55,142 INFO nmslib: Registering at the factory, space: kldivgenfastrq distance type: FLOAT
+2026-08-18 18:02:55,143 INFO nmslib: Registering at the factory, space: itakurasaitofast distance type: FLOAT
+2026-08-18 18:02:55,143 INFO nmslib: Registering at the factory, space: jsdivslow distance type: FLOAT
+2026-08-18 18:02:55,144 INFO nmslib: Registering at the factory, space: jsdivfast distance type: FLOAT
+2026-08-18 18:02:55,145 INFO nmslib: Registering at the factory, space: jsdivfastapprox distance type: FLOAT
+2026-08-18 18:02:55,145 INFO nmslib: Registering at the factory, space: jsmetrslow distance type: FLOAT
+2026-08-18 18:02:55,146 INFO nmslib: Registering at the factory, space: jsmetrfast distance type: FLOAT
+2026-08-18 18:02:55,148 INFO nmslib: Registering at the factory, space: jsmetrfastapprox distance type: FLOAT
+2026-08-18 18:02:55,149 INFO nmslib: Registering at the factory, space: word_embed distance type: FLOAT
+2026-08-18 18:02:55,150 INFO nmslib: Registering at the factory, space: lp distance type: FLOAT
+2026-08-18 18:02:55,150 INFO nmslib: Registering at the factory, space: linf distance type: FLOAT
+2026-08-18 18:02:55,151 INFO nmslib: Registering at the factory, space: l1 distance type: FLOAT
+2026-08-18 18:02:55,152 INFO nmslib: Registering at the factory, space: l2 distance type: FLOAT
+2026-08-18 18:02:55,153 INFO nmslib: Registering at the factory, space: cosinesimil distance type: FLOAT
+2026-08-18 18:02:55,153 INFO nmslib: Registering at the factory, space: angulardist distance type: FLOAT
+2026-08-18 18:02:55,154 INFO nmslib: Registering at the factory, space: negdotprod distance type: FLOAT
+2026-08-18 18:02:55,155 INFO nmslib: Registering at the factory, space: lp_sparse distance type: FLOAT
+2026-08-18 18:02:55,156 INFO nmslib: Registering at the factory, space: linf_sparse distance type: FLOAT
+2026-08-18 18:02:55,156 INFO nmslib: Registering at the factory, space: l1_sparse distance type: FLOAT
+2026-08-18 18:02:55,157 INFO nmslib: Registering at the factory, space: l2_sparse distance type: FLOAT
+2026-08-18 18:02:55,158 INFO nmslib: Registering at the factory, space: cosinesimil_sparse distance type: FLOAT
+2026-08-18 18:02:55,158 INFO nmslib: Registering at the factory, space: angulardist_sparse distance type: FLOAT
+2026-08-18 18:02:55,159 INFO nmslib: Registering at the factory, space: negdotprod_sparse distance type: FLOAT
+2026-08-18 18:02:55,162 INFO nmslib: Registering at the factory, space: cosinesimil_sparse_fast distance type: FLOAT
+2026-08-18 18:02:55,163 INFO nmslib: Registering at the factory, space: cosinesimil_sparse_bin_fast distance type: FLOAT
+2026-08-18 18:02:55,163 INFO nmslib: Registering at the factory, space: angulardist_sparse_fast distance type: FLOAT
+2026-08-18 18:02:55,164 INFO nmslib: Registering at the factory, space: negdotprod_sparse_fast distance type: FLOAT
+2026-08-18 18:02:55,165 INFO nmslib: Registering at the factory, space: negdotprod_sparse_bin_fast distance type: FLOAT
+2026-08-18 18:02:55,166 INFO nmslib: Registering at the factory, space: querynorm_negdotprod_sparse_fast distance type: FLOAT
+2026-08-18 18:02:55,167 INFO nmslib: Registering at the factory, space: jaccard_sparse distance type: FLOAT
+2026-08-18 18:02:55,168 INFO nmslib: Registering at the factory, space: abdiv_slow distance type: FLOAT
+2026-08-18 18:02:55,169 INFO nmslib: Registering at the factory, space: abdiv_fast distance type: FLOAT
+2026-08-18 18:02:55,170 INFO nmslib: Registering at the factory, space: renyidiv_slow distance type: FLOAT
+2026-08-18 18:02:55,171 INFO nmslib: Registering at the factory, space: renyidiv_fast distance type: FLOAT
+2026-08-18 18:02:55,172 INFO nmslib: Registering at the factory, space: l2sqr_sift distance type: INT
+2026-08-18 18:02:55,172 INFO nmslib: Registering at the factory, space: sparse_dense_fusion distance type: FLOAT
+2026-08-18 18:02:55,173 INFO nmslib: Registering at the factory, method: dummy distance type: FLOAT
+2026-08-18 18:02:55,174 INFO nmslib: Registering at the factory, method: dummy distance type: INT
+2026-08-18 18:02:55,174 INFO nmslib: Registering at the factory, method: pivot_neighb_invindx distance type: FLOAT
+2026-08-18 18:02:55,175 INFO nmslib: Registering at the factory, method: pivot_neighb_invindx distance type: INT
+2026-08-18 18:02:55,176 INFO nmslib: Registering at the factory, method: napp distance type: FLOAT
+2026-08-18 18:02:55,177 INFO nmslib: Registering at the factory, method: napp distance type: INT
+2026-08-18 18:02:55,178 INFO nmslib: Registering at the factory, method: brute_force distance type: FLOAT
+2026-08-18 18:02:55,178 INFO nmslib: Registering at the factory, method: brute_force distance type: INT
+2026-08-18 18:02:55,179 INFO nmslib: Registering at the factory, method: seq_search distance type: FLOAT
+2026-08-18 18:02:55,180 INFO nmslib: Registering at the factory, method: seq_search distance type: INT
+2026-08-18 18:02:55,180 INFO nmslib: Registering at the factory, method: sw-graph distance type: FLOAT
+2026-08-18 18:02:55,181 INFO nmslib: Registering at the factory, method: sw-graph distance type: INT
+2026-08-18 18:02:55,184 INFO nmslib: Registering at the factory, method: small_world_rand distance type: FLOAT
+2026-08-18 18:02:55,185 INFO nmslib: Registering at the factory, method: small_world_rand distance type: INT
+2026-08-18 18:02:55,186 INFO nmslib: Registering at the factory, method: hnsw distance type: FLOAT
+2026-08-18 18:02:55,187 INFO nmslib: Registering at the factory, method: hnsw distance type: INT
+2026-08-18 18:02:55,188 INFO nmslib: Registering at the factory, method: vptree distance type: INT
+2026-08-18 18:02:55,189 INFO nmslib: Registering at the factory, method: vptree distance type: FLOAT
+2026-08-18 18:02:55,189 INFO nmslib: Registering at the factory, method: simple_invindx distance type: FLOAT
+2026-08-18 18:03:55,647 INFO nmslib: Loading index from /root/.scispacy/datasets/7e8e091ec80370b87b1652f461eae9d926e543a403a69c1f0968f71157322c25.6d801a1e14867953e36258b0e19a23723ae84b0abd2a723bdd3574c3e0c873b4.nmslib_index.bin
+2026-08-18 18:03:55,649 INFO nmslib: Loading regular index.
+2026-08-18 18:04:08,605 INFO nmslib: Finished loading index
+2026-08-18 18:04:08,607 INFO nmslib: Set HNSW query-time parameters:
+2026-08-18 18:04:08,608 INFO nmslib: ef(Search)         =20
+2026-08-18 18:04:08,609 INFO nmslib: algoType           =2
+2026-08-18 18:04:08,610 INFO nmslib: Set HNSW query-time parameters:
+2026-08-18 18:04:08,611 INFO nmslib: ef(Search)         =200
+2026-08-18 18:04:08,612 INFO nmslib: algoType           =2

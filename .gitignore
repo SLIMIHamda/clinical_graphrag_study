@@ -17,6 +17,13 @@ results/*.parquet
 figures/*.png
 figures/*.pdf
 
+# Rendered result reports are kept local only (regenerated from the run).
+/reports/
+
+# Regenerable embedding cache — large binaries (corpus_emb.npy), not source.
+# Anchored under /results/ so it only ever touches run output, never a source dir.
+/results/**/cache/
+
 # Benchmark data + corpora are large and reused from MedRAG; not in git.
 # NOTE: these patterns are anchored with a leading slash on purpose. An
 # unanchored `data/` matches *any* directory named data at any depth — it

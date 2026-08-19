@@ -1,0 +1,16 @@
+{
+  "graph_hash": "9e1abb1edf5399d29ffdfe03c4a66c394178dd865e122b4683c2e9067b331280",
+  "n_chunks": 792,
+  "n_concepts": 4171,
+  "n_links": 14564,
+  "coverage": {
+    "exact": 0.5721844546398313,
+    "exact+abbrev": 0.5724858511101437,
+    "exact+abbrev+fuzzy": 0.6009175848096179
+  },
+  "umls_source": "scispacy",
+  "linked_frac": 0.6009175848096179,
+  "coverage_floor": 0.2,
+  "docs_with_concepts": 779,
+  "G3": true
+}
