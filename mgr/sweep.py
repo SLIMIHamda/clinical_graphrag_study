@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Callable, Mapping
 
 from manifest.manifest import Manifest
-from mgr.generate.executor import GenClient, RAGExecutor
+from mgr.generate.executor import GateCapture, GenClient, RAGExecutor
 from mgr.rerank.care_gate import CareGate
 from mgr.retrieval.base import NullRetriever, Retriever
 from mgr.retrieval.factory import ConditionNotWired
@@ -59,6 +59,7 @@ class Resources:
     k: int = 60
     weights: dict[str, float] | None = None
     n_items: int | None = None  # smoke override; None = full benchmark
+    gate: GateCapture | None = None  # Gate-A feature capture; only the No-RAG arm acts on it
 
 
 def _pull(condition: str, needs: list[str], res: Resources) -> dict[str, Retriever]:
@@ -98,6 +99,7 @@ def build_arm(condition: str, res: Resources) -> RAGExecutor:
         data_root=res.data_root,
         retriever=build_retriever_for(condition, res),
         n_items=res.n_items,
+        gate=res.gate,  # executor self-gates: only the No-RAG (NullRetriever) arm captures
     )
 
 

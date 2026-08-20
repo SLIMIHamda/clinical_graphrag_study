@@ -35,3 +35,24 @@ class VLLMClient:
             "out": int(usage.get("completion_tokens", 0)),
         }
         return text, tokens
+
+    def complete_text_logprobs(
+        self, model: str, messages: list[dict[str, str]], *, top_logprobs: int = 10, **params: Any
+    ) -> tuple[str, dict[str, int], list[dict[str, Any]]]:
+        """Like :meth:`complete_text`, but also request per-token logprobs and
+        return the OpenAI ``logprobs.content`` list (each entry carries a
+        ``top_logprobs`` candidate list). Drives Gate-A pre-retrieval feature
+        capture (confidence/entropy/margin); see docs/gate_a_phase_a.md.
+
+        Any generation client used with ``GateCapture`` must expose this method.
+        """
+        resp = self.chat(model, messages, logprobs=True, top_logprobs=top_logprobs, **params)
+        choice = resp["choices"][0]
+        text = choice["message"]["content"]
+        usage = resp.get("usage", {})
+        tokens = {
+            "in": int(usage.get("prompt_tokens", 0)),
+            "out": int(usage.get("completion_tokens", 0)),
+        }
+        content = (choice.get("logprobs") or {}).get("content") or []
+        return text, tokens, list(content)
