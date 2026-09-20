@@ -17,9 +17,15 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.6",
 ]
-# Runtime-only services (installed on the pod): the NIM/vLLM HTTP clients are
-# stdlib; these are for the graph DB and local serving.
-serve = ["neo4j>=5.20", "vllm>=0.6"]
+# Runtime-only services: the NIM/vLLM HTTP clients are stdlib; these are for the
+# graph DB and local serving. vLLM is pinned >=0.8 because 0.6 predates Blackwell
+# (sm_120) support — on a 5090 the older builds have no kernels for the device.
+serve = ["neo4j>=5.20", "vllm>=0.8"]
+# In-process models: local generation (LocalHFClient), local embeddings
+# (LocalEmbedder) and the MedCPT cross-encoder. Required for any run over
+# credentialed data, where no hosted endpoint may be called. Install torch
+# separately with the CUDA build your GPU needs (cu128 for Blackwell).
+local = ["transformers>=4.44", "accelerate>=0.33"]
 
 [build-system]
 requires = ["setuptools>=68"]

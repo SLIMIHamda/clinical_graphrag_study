@@ -1,0 +1,17 @@
+{
+  "_note": "B0 harness cross-check. Each value is the PUBLISHED accuracy for that benchmark+condition. Fill from the MedRAG/MIRAGE paper (Xiong et al., 'Benchmarking Retrieval-Augmented Generation for Medicine'), matching the backbone you actually run. Record the exact table/row in _source, then set _verified to true.",
+  "_source": null,
+  "_backbone": null,
+  "_verified": false,
+
+  "MMLU-Med|No-RAG": null,
+  "MMLU-Med|BM25": null,
+  "MedQA-US|No-RAG": null,
+  "MedQA-US|BM25": null,
+  "MedMCQA|No-RAG": null,
+  "MedMCQA|BM25": null,
+  "PubMedQA|No-RAG": null,
+  "PubMedQA|BM25": null,
+  "BioASQ-YN|No-RAG": null,
+  "BioASQ-YN|BM25": null
+}

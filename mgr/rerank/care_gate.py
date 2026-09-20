@@ -142,6 +142,46 @@ class CareGate:
             b -= lr * grad_b
         return cls(weights=w, bias=b, mu=mu, sigma=sigma)
 
+    # -- persistence ----------------------------------------------------------
+    # A fitted gate is the P3 artifact: it is trained once from the oracle labels
+    # and then *frozen* for the CARe arm. Without serialization it would have to
+    # be refit inside every run, which would quietly make the gate a function of
+    # the data it is being evaluated on.
+
+    def to_dict(self) -> dict:
+        return {
+            "weights": [float(x) for x in self.weights],
+            "bias": float(self.bias),
+            "mu": [float(x) for x in self.mu],
+            "sigma": [float(x) for x in self.sigma],
+            "threshold": float(self.threshold),
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "CareGate":
+        return cls(
+            weights=np.asarray(d["weights"], dtype=float),
+            bias=float(d["bias"]),
+            mu=np.asarray(d["mu"], dtype=float),
+            sigma=np.asarray(d["sigma"], dtype=float),
+            threshold=float(d.get("threshold", 0.5)),
+        )
+
+    def save(self, path) -> None:
+        import json
+        from pathlib import Path
+
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")
+
+    @classmethod
+    def load(cls, path) -> "CareGate":
+        import json
+        from pathlib import Path
+
+        return cls.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))
+
 
 @dataclass
 class FrontierPoint:

@@ -88,3 +88,61 @@ class InMemoryGraphStore:
         for a in sorted(self.concept_edges):
             parts.append("E|" + a + "|" + ",".join(sorted(self.concept_edges[a])))
         return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
+
+    # -- persistence ----------------------------------------------------------
+    # Without this the in-memory build is lost when the process exits, so the
+    # graph arms are reachable only through Neo4j. A JSON snapshot lets a box
+    # with no database build the graph once and retrieve against it afterwards;
+    # ``graph_hash`` round-trips, so a reloaded graph is still auditable against
+    # the G3 evidence that froze it.
+
+    def to_dict(self) -> dict:
+        return {
+            "version": 1,
+            "chunks": self.chunks,
+            "chunk_concepts": {k: sorted(v) for k, v in self.chunk_concepts.items() if v},
+            "concept_edges": {k: sorted(v) for k, v in self.concept_edges.items()},
+            "graph_hash": self.signature(),
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "InMemoryGraphStore":
+        store = cls()
+        for cid, payload in (d.get("chunks") or {}).items():
+            payload = dict(payload)
+            store.add_chunk(cid, payload.pop("text", ""), **payload)
+        for cid, cuis in (d.get("chunk_concepts") or {}).items():
+            for cui in cuis:
+                store.link_chunk_concept(cid, cui)
+        for a, neighbours in (d.get("concept_edges") or {}).items():
+            store.add_concept(a)
+            for b in neighbours:
+                store.link_concept_concept(a, b)
+        return store
+
+
+def save_snapshot(store: InMemoryGraphStore, path) -> str:
+    """Write a JSON snapshot; returns the frozen ``graph_hash``."""
+    import json
+    from pathlib import Path
+
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    payload = store.to_dict()
+    p.write_text(json.dumps(payload), encoding="utf-8")
+    return str(payload["graph_hash"])
+
+
+def load_snapshot(path) -> InMemoryGraphStore:
+    """Rebuild a store from :func:`save_snapshot`, verifying the hash survived."""
+    import json
+    from pathlib import Path
+
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    store = InMemoryGraphStore.from_dict(payload)
+    expected = payload.get("graph_hash")
+    if expected and store.signature() != expected:
+        raise ValueError(
+            f"graph snapshot hash mismatch: file says {expected}, reload computes {store.signature()}"
+        )
+    return store

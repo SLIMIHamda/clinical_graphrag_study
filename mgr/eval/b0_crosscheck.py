@@ -60,6 +60,27 @@ def crosscheck(
     return CrossCheckReport(tolerance=tolerance, rows=rows)
 
 
-def load_reference(path: str | Path) -> dict[str, float]:
+class UnverifiedReference(RuntimeError):
+    """The reference file has not been filled in from the published paper."""
+
+
+def load_reference(path: str | Path, *, require_verified: bool = True) -> dict[str, float]:
+    """Load ``{"benchmark|condition": acc}``, refusing an unfilled file.
+
+    The shipped reference starts with ``_verified: false`` and null values. A
+    placeholder that silently loads is worse than no gate at all: it turns "we
+    never checked against the literature" into a passing cross-check, and every
+    downstream accuracy claim inherits that. ``require_verified=False`` is for
+    tests that supply their own numbers.
+    """
     raw = json.loads(Path(path).read_text(encoding="utf-8"))
-    return {k: float(v) for k, v in raw.items() if not k.startswith("_")}  # skip notes
+    if require_verified and not raw.get("_verified", False):
+        raise UnverifiedReference(
+            f"{path} is not verified: fill each value from the published MedRAG/MIRAGE "
+            f"paper, record the citation in '_source', then set '_verified': true"
+        )
+    values = {k: v for k, v in raw.items() if not k.startswith("_")}  # skip notes/metadata
+    missing = sorted(k for k, v in values.items() if v is None)
+    if missing and require_verified:
+        raise UnverifiedReference(f"{path} has unfilled entries: {missing}")
+    return {k: float(v) for k, v in values.items() if v is not None}

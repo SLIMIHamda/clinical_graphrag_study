@@ -54,7 +54,9 @@ def test_b0_crosscheck_pass_and_fail():
 def test_b0_load_reference_skips_notes(tmp_path):
     p = tmp_path / "ref.json"
     p.write_text('{"_note": "hi", "MMLU-Med|No-RAG": 0.78}', encoding="utf-8")
-    ref = load_reference(p)
+    # require_verified=False: this covers note-stripping, not the verification
+    # gate (see tests/test_b0_reference.py for that)
+    ref = load_reference(p, require_verified=False)
     assert ref == {"MMLU-Med|No-RAG": 0.78}
 
 
