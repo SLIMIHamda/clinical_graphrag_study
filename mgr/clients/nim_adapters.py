@@ -16,11 +16,24 @@ high-level methods, so tests inject a fake client.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 import numpy as np
+
+from .judge_prompts import (
+    JUDGE_SYSTEM,
+    MAX_TOKENS,
+    clamp01,
+    decompose_prompt,
+    entails_prompt,
+    entities_prompt,
+    parse_float,
+    parse_lines,
+    parse_yes,
+    relevance_prompt,
+    relevant_prompt,
+)
 
 
 class _NimLike(Protocol):
@@ -31,24 +44,6 @@ class _NimLike(Protocol):
 
 def _content(resp: dict[str, Any]) -> str:
     return resp["choices"][0]["message"]["content"].strip()
-
-
-def _is_yes(text: str) -> bool:
-    return bool(re.match(r"\s*(yes|true|1)\b", text.strip(), re.I))
-
-
-def _first_float(text: str, default: float = 0.0) -> float:
-    m = re.search(r"[-+]?\d*\.?\d+", text)
-    return float(m.group(0)) if m else default
-
-
-def _lines(text: str) -> list[str]:
-    out = []
-    for ln in text.splitlines():
-        ln = re.sub(r"^\s*(?:[-*\d.)]+)\s*", "", ln).strip()  # strip bullets/numbering
-        if ln:
-            out.append(ln)
-    return out
 
 
 @dataclass
@@ -75,41 +70,30 @@ class NimReranker:
         return [candidate_ids[r["index"]] for r in rankings]
 
 
-_JUDGE_SYS = {"role": "system", "content": "You are a meticulous biomedical evaluation judge. Follow the output format exactly."}
-
-
 @dataclass
 class NimGroundingJudge:
     client: _NimLike
     model: str = "meta/llama-3.1-8b-instruct"
 
-    def _ask(self, prompt: str) -> str:
-        return _content(self.client.judge(self.model, [_JUDGE_SYS, {"role": "user", "content": prompt}]))
+    def _ask(self, prompt: str, kind: str) -> str:
+        return _content(self.client.judge(
+            self.model, [JUDGE_SYSTEM, {"role": "user", "content": prompt}],
+            max_tokens=MAX_TOKENS[kind],
+        ))
 
     def decompose(self, text: str) -> list[str]:
         if not text.strip():
             return []
-        return _lines(self._ask(
-            "Break the following answer into atomic factual claims, one per line:\n\n" + text
-        ))
+        return parse_lines(self._ask(decompose_prompt(text), "decompose"))
 
     def entails(self, hypothesis: str, premise: str) -> bool:
-        return _is_yes(self._ask(
-            f"Premise:\n{premise}\n\nClaim:\n{hypothesis}\n\n"
-            "Is the claim fully supported by the premise? Answer yes or no."
-        ))
+        return parse_yes(self._ask(entails_prompt(hypothesis, premise), "entails"))
 
     def relevant(self, question: str, passage: str) -> bool:
-        return _is_yes(self._ask(
-            f"Question:\n{question}\n\nPassage:\n{passage}\n\n"
-            "Is this passage relevant to answering the question? Answer yes or no."
-        ))
+        return parse_yes(self._ask(relevant_prompt(question, passage), "relevant"))
 
     def relevance(self, question: str, answer: str) -> float:
-        return max(0.0, min(1.0, _first_float(self._ask(
-            f"Question:\n{question}\n\nAnswer:\n{answer}\n\n"
-            "Rate how relevant the answer is to the question, from 0.0 to 1.0. Reply with only the number."
-        ))))
+        return clamp01(parse_float(self._ask(relevance_prompt(question, answer), "relevance")))
 
 
 @dataclass
@@ -120,8 +104,7 @@ class NimEntityExtractor:
     def extract(self, text: str) -> list[str]:
         if not text.strip():
             return []
-        prompt = (
-            "List the medical entities (diseases, drugs, procedures, findings) "
-            "mentioned in the text, one per line:\n\n" + text
-        )
-        return _lines(_content(self.client.judge(self.model, [_JUDGE_SYS, {"role": "user", "content": prompt}])))
+        return parse_lines(_content(self.client.judge(
+            self.model, [JUDGE_SYSTEM, {"role": "user", "content": entities_prompt(text)}],
+            max_tokens=MAX_TOKENS["entities"],
+        )))

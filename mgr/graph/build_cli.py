@@ -41,7 +41,9 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Build the grounded graph (-> gate G3)")
     ap.add_argument("--corpus", required=True, help="chunks JSONL: {id, text, ...provenance}")
     ap.add_argument("--umls", required=True, help="term->CUI JSON dictionary")
-    ap.add_argument("--extractor", choices=["ngram", "nim"], default="ngram")
+    ap.add_argument("--extractor", choices=["ngram", "local", "nim"], default="ngram")
+    ap.add_argument("--local-model", default="meta-llama/Llama-3.1-8B-Instruct",
+                    help="model id for --extractor local (in-process transformers)")
     ap.add_argument("--store", choices=["memory", "neo4j"], default="memory")
     ap.add_argument("--neo4j-uri", default="bolt://localhost:7687")
     ap.add_argument("--out-graph", default="results/graph_snapshot.json",
@@ -62,6 +64,13 @@ def main(argv: list[str] | None = None) -> int:
         extractor = NimEntityExtractor(
             NimClient(base_url=os.environ["NIM_BASE_URL"], api_key=os.environ["NIM_API_KEY"])
         )
+    elif args.extractor == "local":
+        # LLM extraction without a hosted call — for vocabulary the dictionary
+        # misses, on corpora the hosted judge may not see.
+        from mgr.clients.local_adapters import LocalEntityExtractor
+        from mgr.clients.local_hf import LocalHFClient
+
+        extractor = LocalEntityExtractor(LocalHFClient(model_id=args.local_model))
     else:
         from .extract import NgramExtractor
 
