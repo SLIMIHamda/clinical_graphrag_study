@@ -41,14 +41,19 @@ class GateCapture:
     Off by default. Only the No-RAG arm (a ``NullRetriever``) captures — its
     generation is the base model answering with no context, which is exactly the
     signal Gate A decides on. RAG arms are untouched, so capture never perturbs
-    the measured conditions. When enabled, the generation client must expose
-    ``complete_text_logprobs`` (VLLMClient does).
+    the measured conditions.
+
+    ``label_scoring`` picks how the option distribution is read. ``"teacher_forced"``
+    (default, the paper's probe) needs a client with ``score_labels`` (VLLMClient,
+    LocalHFClient). ``"topk"`` is the older first-token top-k path and needs
+    ``complete_text_logprobs``; it is kept for clients without scoring.
     """
 
     enabled: bool = False
+    label_scoring: str = "teacher_forced"  # or "topk"
     n_samples: int = 5              # self-consistency draws; 0 disables the sc_* features
     sample_temperature: float = 0.7
-    top_logprobs: int = 10          # candidates requested at the answer-token position
+    top_logprobs: int = 10          # topk path only: candidates requested at the answer token
     embed_client: Any | None = None  # anything exposing .embeddings(model, [text]) -> {"data":[{"embedding": [...]}]}
     embed_model: str = ""            # empty disables the q_emb feature
 
@@ -83,21 +88,39 @@ class RAGExecutor:
         greedy_norm: str | None,
         lp_content: list[dict[str, Any]] | None,
     ) -> dict[str, Any]:
-        """Pre-retrieval Gate-A features for one No-RAG item: option-logprob
-        confidence/entropy/margin, self-consistency over ``n_samples`` stochastic
-        draws, structural stats, and an optional question embedding. Returns the
-        flat feature keys (mgr.gate.features) plus ``gate_cost_tokens`` — the
-        self-consistency spend, kept off the arm's token total so the gate's cost
-        is measurable, not hidden inside the No-RAG accuracy record.
+        """Pre-retrieval Gate-A features for one No-RAG item: label-score
+        confidence/entropy/margin/valid mass, self-consistency over ``n_samples``
+        stochastic draws, structural stats, and an optional question embedding.
+        Returns the flat feature keys (mgr.gate.features), the option
+        distribution and probe answer, and ``gate_cost_tokens`` — the probe's
+        spend (label scoring + samples), kept off the arm's token total so the
+        gate's cost is measurable, not hidden inside the No-RAG accuracy record.
         """
         gate = self.gate
         assert gate is not None
-        letters = list(it.options.keys()) if it.options else ["A", "B", "C", "D"]
-        top = gate_features.answer_top_logprobs(lp_content or [], letters)
-        option_probs = gate_features.option_probs_from_logprobs(top, letters)
+        letters = list(it.options.keys()) if it.options else None
+        valid_mass: float | None = None
+        probe_answer = greedy_norm or ""
+        label_tokens = {"in": 0, "out": 0, "in_cached": 0}
+        if gate.label_scoring == "topk":
+            letters = letters or ["A", "B", "C", "D"]
+            top = gate_features.answer_top_logprobs(lp_content or [], letters)
+            option_probs = gate_features.option_probs_from_logprobs(top, letters)
+        else:
+            variants = gate_features.label_variants(it.answer_type, letters)
+            option_probs = {}
+            if variants:
+                forms = sorted({s for v in variants.values() for s in v})
+                lps, usage = self.client.score_labels(model_id, msgs, forms)
+                option_probs, valid_mass = gate_features.option_distribution(
+                    gate_features.option_logprobs(lps, variants)
+                )
+                probe_answer = max(option_probs, key=option_probs.get)
+                for k in label_tokens:
+                    label_tokens[k] += int(usage.get(k, 0))
 
-        samples: list[str] = []
-        g_in = g_out = 0
+        samples: list[str | None] = []
+        g_in, g_out = label_tokens["in"], label_tokens["out"]
         base_seed = int(decoding.get("seed", 0))
         for j in range(max(0, gate.n_samples)):
             params = {**decoding, "temperature": gate.sample_temperature, "seed": base_seed * 1000 + j + 1}
@@ -107,9 +130,7 @@ class RAGExecutor:
                 continue  # a flaky sample just lowers k for this item, never sinks it
             g_in += int(s_usage.get("in", 0))
             g_out += int(s_usage.get("out", 0))
-            s_norm = normalize(s_raw, it.answer_type)
-            if s_norm:
-                samples.append(s_norm)
+            samples.append(normalize(s_raw, it.answer_type))  # None -> its own "unparsed" category
 
         q_emb = None
         if gate.embed_client is not None and gate.embed_model:
@@ -121,22 +142,31 @@ class RAGExecutor:
 
         feats = gate_features.compute_features(
             option_probs=option_probs,
-            greedy_answer=greedy_norm or "",
+            greedy_answer=probe_answer,
             question=it.question,
-            n_options=len(letters),
+            n_options=len(option_probs),
             samples=samples,
             q_emb=q_emb,
+            valid_mass=valid_mass,
         )
-        feats["gate_cost_tokens"] = {"in": g_in, "out": g_out}
+        feats["label_scoring"] = gate.label_scoring
+        feats["option_probs"] = {k: round(v, 6) for k, v in option_probs.items()}
+        feats["probe_answer"] = probe_answer
+        feats["gate_cost_tokens"] = {"in": g_in, "out": g_out, "label_in_cached": label_tokens["in_cached"]}
         return feats
 
     def __call__(self, row: RunRow, cfg: dict[str, Any]) -> ExecResult:
-        # Fail loud *before* a whole arm runs: capturing needs the logprob path.
-        if self._capturing() and not hasattr(self.client, "complete_text_logprobs"):
-            raise RuntimeError(
-                "Gate-A feature capture is enabled but the generation client has no "
-                "complete_text_logprobs(); add it (see docs/gate_a_phase_a.md section 3)."
-            )
+        # Fail loud *before* a whole arm runs: capturing needs the scoring path.
+        if self._capturing():
+            mode = self.gate.label_scoring
+            need = {"teacher_forced": "score_labels", "topk": "complete_text_logprobs"}.get(mode)
+            if need is None:
+                raise ValueError(f"GateCapture.label_scoring must be 'teacher_forced' or 'topk', got {mode!r}")
+            if not hasattr(self.client, need):
+                raise RuntimeError(
+                    f"Gate-A feature capture ({mode}) needs a generation client with {need}(); "
+                    "add it, or use the other label_scoring mode (see docs/gate_a_phase_a.md section 3)."
+                )
         benchmark_type = str(cfg["benchmark"].get("type", "MCQ"))
         model_id = str(cfg["backbone"]["model_id"])
         # The manifest hands us the contract model_id (e.g. the 70B), but a
@@ -161,6 +191,7 @@ class RAGExecutor:
         tok_in = tok_out = 0
         item_errors: list[str] = []
         capture = self._capturing()
+        topk_capture = capture and self.gate.label_scoring == "topk"
 
         for it in items:
             rr = RetrievalResult()
@@ -174,7 +205,7 @@ class RAGExecutor:
                     it.question, it.answer_type, options=it.options, context=rr.context
                 )
                 t0 = time.time()
-                if capture:
+                if topk_capture:
                     raw, usage, lp_content = self.client.complete_text_logprobs(
                         model_id, msgs, top_logprobs=self.gate.top_logprobs, **decoding
                     )
@@ -205,8 +236,13 @@ class RAGExecutor:
                 "error": item_error,
             }
             if capture and item_error is None:
-                row_out["no_rag_correct"] = int(bool(correct))
-                row_out.update(self._gate_features(it, msgs, model_id, decoding, norm, lp_content))
+                try:
+                    feats = self._gate_features(it, msgs, model_id, decoding, norm, lp_content)
+                except Exception as e:  # a failed probe drops the item from Phase A, not the run
+                    row_out["gate_error"] = f"{type(e).__name__}: {e}"
+                else:
+                    row_out["no_rag_correct"] = int(bool(correct))
+                    row_out.update(feats)
             out_items.append(row_out)
             preds.append(norm)
             golds.append(it.gold)

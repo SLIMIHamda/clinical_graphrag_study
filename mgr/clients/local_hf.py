@@ -19,7 +19,7 @@ test env; smoke-test it on the target (Kaggle) before a full run — one item wi
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Sequence
 
 
 @dataclass
@@ -57,12 +57,14 @@ class LocalHFClient:
         self.model = self.model_id
 
     # -- prompt -----------------------------------------------------------------
-    def _encode(self, messages: list[dict[str, str]]):
+    def _render(self, messages: list[dict[str, str]]) -> str:
         try:
-            text = self._tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            return self._tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         except Exception:  # model without a chat template -> plain concatenation
-            text = "".join(f"{m.get('role','user')}: {m.get('content','')}\n" for m in messages) + "assistant:"
-        return self._tok(text, return_tensors="pt").to(self._model.device)
+            return "".join(f"{m.get('role','user')}: {m.get('content','')}\n" for m in messages) + "assistant:"
+
+    def _encode(self, messages: list[dict[str, str]]):
+        return self._tok(self._render(messages), return_tensors="pt").to(self._model.device)
 
     def _usage(self, n_in: int, n_out: int) -> dict[str, int]:
         return {"in": int(n_in), "out": int(n_out)}
@@ -123,3 +125,31 @@ class LocalHFClient:
                         "logprob": float(logp[first_id]),
                         "top_logprobs": top}]
         return text, self._usage(n_in, new.shape[0]), content
+
+    def score_labels(
+        self, model: str, messages: list[dict[str, str]], labels: Sequence[str]
+    ) -> tuple[dict[str, float], dict[str, int]]:
+        """Teacher-forced ``log P(label | prompt)`` for each answer label, the same
+        contract as :meth:`mgr.clients.vllm.VLLMClient.score_labels`.
+
+        The prompt is rendered exactly as for generation and the label appended.
+        Scoring starts where the tokenizations of prompt and prompt+label first
+        differ, so a label that fuses with the last prompt token is still scored.
+        """
+        torch = self._torch
+        prompt = self._render(messages)
+        prompt_ids = self._tok(prompt)["input_ids"]
+        scores: dict[str, float] = {}
+        n_in = 0
+        for label in labels:
+            enc = self._tok(prompt + label, return_tensors="pt").to(self._model.device)
+            ids = enc["input_ids"][0]
+            start = next((i for i, (a, b) in enumerate(zip(prompt_ids, ids.tolist())) if a != b),
+                         min(len(prompt_ids), len(ids)))
+            start = max(1, start)
+            with torch.no_grad():
+                logits = self._model(**enc).logits[0]
+            logp = torch.log_softmax(logits[start - 1 : -1].float(), dim=-1)
+            scores[label] = float(logp.gather(1, ids[start:, None]).sum())
+            n_in += int(ids.shape[0])
+        return scores, self._usage(n_in, 0)

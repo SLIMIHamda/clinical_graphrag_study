@@ -2,9 +2,15 @@
 
 Gate A routes each question to *retrieve* or *don't retrieve* using only signals
 available before retrieval — i.e. from the base model answering with no context.
-This module turns those raw signals (option logprobs, self-consistency samples,
-the question string, an optional question embedding) into the scalar feature
-vector x_q the gate consumes.
+This module turns those raw signals (answer-label scores, self-consistency
+samples, the question string, an optional question embedding) into the scalar
+feature vector x_q the gate consumes.
+
+Answer-label scoring (paper, eq. labelscore) is the primary path: the client
+teacher-forces every admissible label after the closed-book prompt, and
+:func:`option_distribution` normalizes those logprobs over the option set. The
+older top-k path (:func:`option_probs_from_logprobs`) is kept for clients that
+only expose first-token ``top_logprobs``.
 
 Deliberately stdlib-only (``math`` + ``collections``): it runs *inside* the
 generation loop on the serving box and must not drag numpy/sklearn or the
@@ -29,8 +35,9 @@ from typing import Any, Mapping, Sequence
 # all agree on one schema.
 SCALAR_FEATURES: tuple[str, ...] = (
     "confidence",         # max_c P(option c)      -- high => model is sure
-    "entropy",            # H(P over options)      -- high => unsure  => retrieve
+    "entropy",            # H(P over options) / log|O| -- high => unsure => retrieve
     "margin",             # P(top1) - P(top2)      -- low  => unsure  => retrieve
+    "valid_mass",         # sum_o P(label_o | prompt) -- low => off-format => retrieve
     "sc_agreement",       # modal share over k samples (self-consistency)
     "sc_entropy",         # H over the k sampled answers
     "sc_matches_greedy",  # share of samples equal to the greedy answer
@@ -40,6 +47,55 @@ SCALAR_FEATURES: tuple[str, ...] = (
 )
 
 _LOGPROB_FLOOR = -50.0  # exp(-50) ~ 2e-22: an option absent from top-k is ~0, not missing.
+_UNPARSED = "<unparsed>"  # self-consistency category for samples no label could be read from
+
+# Surface forms scored per yes/no(/maybe) option. The prompt asks for lower case,
+# but the normalizer accepts any case, so the probe counts both spellings.
+_YN_VARIANTS = {"yes": ("yes", "Yes"), "no": ("no", "No"), "maybe": ("maybe", "Maybe")}
+
+
+def label_variants(answer_type: str, option_letters: Sequence[str] | None = None) -> dict[str, tuple[str, ...]]:
+    """The answer labels the probe teacher-forces, as ``{option: surface forms}``.
+
+    MCQ options are their capital letters (the frozen prompt asks for exactly
+    that); yes/no(/maybe) options get a lower- and a capitalized form. Free-form
+    items have no label set, so label scores are unavailable for them -> {}.
+    """
+    if answer_type == "mcq":
+        letters = option_letters or ("A", "B", "C", "D")
+        return {c.strip().upper(): (c.strip().upper(),) for c in letters if c.strip()}
+    if answer_type == "yes_no_maybe":
+        return {k: _YN_VARIANTS[k] for k in ("yes", "no", "maybe")}
+    if answer_type == "yes_no":
+        return {k: _YN_VARIANTS[k] for k in ("yes", "no")}
+    return {}
+
+
+def _logsumexp(values: Sequence[float]) -> float:
+    m = max(values)
+    return m + math.log(sum(math.exp(v - m) for v in values))
+
+
+def option_logprobs(
+    label_logprobs: Mapping[str, float],
+    variants: Mapping[str, Sequence[str]],
+) -> dict[str, float]:
+    """Fold per-surface-form logprobs into one ``log P(label_o | prompt)`` per option."""
+    return {o: _logsumexp([float(label_logprobs[s]) for s in forms]) for o, forms in variants.items()}
+
+
+def option_distribution(option_lp: Mapping[str, float]) -> tuple[dict[str, float], float]:
+    """Paper eq. (labelscore): ``p(o|q)`` is the softmax of the teacher-forced
+    label logprobs over the option set, i.e. conditioned on a valid label.
+
+    Also returns ``valid_mass`` = sum_o P(label_o | prompt), the probability the
+    model would produce *any* admissible label (capped at 1 against rounding).
+    """
+    if not option_lp:
+        return {}, 0.0
+    total = _logsumexp(list(option_lp.values()))
+    probs = {o: math.exp(lp - total) for o, lp in option_lp.items()}
+    return probs, min(1.0, math.exp(total))
 
 
 def _normalize(probs: Mapping[str, float]) -> dict[str, float]:
@@ -98,12 +154,17 @@ def answer_top_logprobs(
 
 
 def confidence_features(option_probs: Mapping[str, float]) -> dict[str, float]:
-    """confidence (top-1 prob), entropy, and top1-top2 margin over the options."""
+    """confidence (top-1 prob), entropy, and top1-top2 margin over the options.
+
+    Entropy is divided by log|O| so items with 3, 4 or 5 options share one scale
+    (1.0 = uniform); it is 0 when there are fewer than two options.
+    """
     p = _normalize(dict(option_probs))
     ordered = sorted(p.values(), reverse=True)
     top1 = ordered[0] if ordered else 0.0
     top2 = ordered[1] if len(ordered) > 1 else 0.0
     entropy = -sum(v * math.log(v) for v in p.values() if v > 0.0)
+    entropy = entropy / math.log(len(p)) if len(p) > 1 else 0.0
     return {"confidence": top1, "entropy": entropy, "margin": top1 - top2}
 
 
@@ -114,10 +175,12 @@ def self_consistency_features(
 
     ``sc_agreement`` is the modal answer's share (1.0 = perfectly stable),
     ``sc_entropy`` the entropy of the sampled-answer distribution, and
-    ``sc_matches_greedy`` the share of samples equal to the greedy answer. All
-    zero when no samples were drawn (self-consistency disabled).
+    ``sc_matches_greedy`` the share of samples equal to the greedy answer. A
+    sample no label could be read from (empty / None) counts as its own
+    ``<unparsed>`` category rather than being dropped. All zero when no samples
+    were drawn (self-consistency disabled).
     """
-    normed = [s for s in (str(x).strip().upper() for x in samples) if s]
+    normed = [(str(x).strip().upper() if x is not None else "") or _UNPARSED for x in samples]
     if not normed:
         return {"sc_agreement": 0.0, "sc_entropy": 0.0, "sc_matches_greedy": 0.0}
     counts = Counter(normed)
@@ -149,17 +212,20 @@ def compute_features(
     greedy_answer: str,
     question: str,
     n_options: int,
-    samples: Sequence[str] | None = None,
+    samples: Sequence[str | None] | None = None,
     q_emb: Sequence[float] | None = None,
+    valid_mass: float | None = None,
 ) -> dict[str, Any]:
     """Assemble the full Gate-A feature record for one item.
 
     Returns every key in :data:`SCALAR_FEATURES`, plus ``q_emb`` (a list) when a
     question embedding is supplied. All inputs are pre-retrieval, so the record
     is exactly what the deployed gate would see at decision time.
+    ``valid_mass`` comes from label scoring; it is 0 when that is off (top-k path).
     """
     feats: dict[str, Any] = {}
     feats.update(confidence_features(option_probs))
+    feats["valid_mass"] = float(valid_mass) if valid_mass is not None else 0.0
     feats.update(self_consistency_features(samples or [], greedy_answer))
     feats.update(structural_features(question, n_options))
     if q_emb is not None:

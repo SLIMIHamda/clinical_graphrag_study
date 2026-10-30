@@ -21,8 +21,14 @@ otherwise:
 
 `recovered` is the headline: how much of the oracle ceiling a *realizable* gate
 banks. This module reports (a) univariate AUROC of each signal vs y, (b) simple
-threshold policies, and (c) learned logistic / MLP gates via cross-validation --
-each with accuracy, retrieval rate and recovered fraction.
+threshold policies, (c) learned logistic / MLP rescue gates via cross-validation,
+and (d) the four-outcome net-benefit gate -- each with accuracy, retrieval rate
+and recovered fraction.
+
+The net-benefit gate (paper Prop. 1, policy class iv) models breaks as well as
+rescues: a multinomial logistic model over {rescue, break, both right, both
+wrong} retrieves when P(rescue|x) - P(break|x) > lambda. Comparing it with the
+rescue-only classifiers isolates what modelling breaks is worth.
 
 IMPORTANT (see docs/gate_a_phase_a.md): on MedQA the positive class is tiny
 (~tens of items), so learned-gate numbers here are a *plumbing dry-run*, not a
@@ -51,6 +57,7 @@ _ORIENT: dict[str, int] = {
     "entropy": +1,
     "confidence": -1,
     "margin": -1,
+    "valid_mass": -1,
     "sc_entropy": +1,
     "sc_agreement": -1,
     "sc_matches_greedy": -1,
@@ -59,9 +66,17 @@ _ORIENT: dict[str, int] = {
     "n_options": +1,
 }
 # Features swept as standalone threshold gates (the interpretable baselines).
-_THRESHOLD_FEATURES = ("entropy", "confidence", "margin", "sc_entropy")
+_THRESHOLD_FEATURES = ("entropy", "confidence", "margin", "valid_mass", "sc_entropy")
 
-_DEFAULT_MIN_POS = 30  # below this many rescueable items, learned gates are dry-run only.
+_DEFAULT_MIN_POS = 30  # below this many rescues (or breaks, for net-benefit), learned gates are dry-run only.
+
+# Per-item retrieval outcome (paper Sec. 3): both wrong S0, both right S1,
+# rescue S+ (No-RAG wrong, RAG right), break S- (No-RAG right, RAG wrong).
+_S0, _S1, _RESCUE, _BREAK = 0, 1, 2, 3
+
+
+def _outcomes(no_rag: np.ndarray, rag: np.ndarray) -> np.ndarray:
+    return np.where(no_rag == rag, no_rag, 2 + no_rag).astype(int)
 
 
 # --------------------------------------------------------------------------- #
@@ -270,7 +285,10 @@ def _learned_gate(
     runs = [r for r in runs if r is not None]
     if not runs:
         return None
+    return _mean_over_seeds(runs, "mean over n_seeds nested-CV shuffles; tau tuned per-fold on training data only")
 
+
+def _mean_over_seeds(runs: Sequence[Mapping[str, Any]], note: str) -> dict[str, Any]:
     def _agg(key: str) -> tuple[float | None, float | None]:
         vals = [r[key] for r in runs if r.get(key) is not None]
         if not vals:
@@ -281,13 +299,122 @@ def _learned_gate(
     rec, rec_sd = _agg("recovered_fraction")
     auc, auc_sd = _agg("oof_auroc")
     rate, _ = _agg("retrieval_rate")
-    return {
+    out = {
         "accuracy": acc, "accuracy_std": acc_sd,
         "retrieval_rate": rate,
         "recovered_fraction": rec, "recovered_fraction_std": rec_sd,
         "oof_auroc": auc, "oof_auroc_std": auc_sd,
         "cv_folds": runs[0]["cv_folds"], "n_seeds": len(runs),
-        "note": "mean over n_seeds nested-CV shuffles; tau tuned per-fold on training data only",
+        "note": note,
+    }
+    if any("oof_auroc_break" in r for r in runs):
+        out["oof_auroc_break"], out["oof_auroc_break_std"] = _agg("oof_auroc_break")
+    return out
+
+
+def _cv_net_benefit_gate(
+    X: np.ndarray,
+    outcome: np.ndarray,
+    no_rag: np.ndarray,
+    rag: np.ndarray,
+    *,
+    lam: float,
+    no_rag_acc: float,
+    oracle_acc: float,
+    n_splits: int,
+    seed: int,
+) -> dict[str, dict[str, Any]] | None:
+    """Cross-validated four-outcome gate (paper Prop. 1, policy class iv).
+
+    Per fold, a multinomial logistic model is fit on the training portion and
+    scores the held-out items with ``net = P(rescue|x) - P(break|x)``. Two
+    decision rules use the same fits:
+
+    - ``plug_in``: retrieve when ``net > lam``, the optimal rule with the fitted
+      probabilities plugged in; nothing is tuned. Class weights are left
+      unbalanced so the outputs estimate the outcome rates the rule needs.
+    - ``tuned``: the cut on ``net`` maximizing the objective on the training
+      portion, the same nested procedure as the rescue classifiers.
+
+    ``oof_auroc`` is ``net`` vs the rescue label (comparable to the rescue
+    classifiers); ``oof_auroc_break`` is P(break|x) vs the break label.
+    None if sklearn is missing or rescues/breaks are too few to stratify.
+    """
+    try:
+        from sklearn.linear_model import LogisticRegression
+        from sklearn.model_selection import StratifiedKFold
+        from sklearn.pipeline import make_pipeline
+        from sklearn.preprocessing import StandardScaler
+    except Exception:
+        return None
+    is_rescue = (outcome == _RESCUE).astype(int)
+    is_break = (outcome == _BREAK).astype(int)
+    k = min(n_splits, int(is_rescue.sum()), int(is_break.sum()))
+    if k < 2:
+        return None
+
+    skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=seed)
+    net = np.full(len(outcome), np.nan, dtype=float)
+    p_break = np.full(len(outcome), np.nan, dtype=float)
+    plug = np.zeros(len(outcome), dtype=bool)
+    tuned = np.zeros(len(outcome), dtype=bool)
+    for tr, te in skf.split(X, outcome):
+        model = make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000))
+        model.fit(X[tr], outcome[tr])
+        classes = list(model.classes_)
+
+        def _scores(Xs: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+            P = model.predict_proba(Xs)
+            col = lambda c: P[:, classes.index(c)] if c in classes else np.zeros(len(Xs))  # noqa: E731
+            return col(_RESCUE) - col(_BREAK), col(_BREAK)
+
+        net_tr, _ = _scores(X[tr])
+        net_te, pb_te = _scores(X[te])
+        tau = _objective_tau(net_tr, no_rag[tr], rag[tr], lam)  # tuned on TRAIN only
+        net[te], p_break[te] = net_te, pb_te
+        plug[te] = net_te > lam
+        tuned[te] = net_te > tau
+
+    common = {"oof_auroc": round(_auroc(net, is_rescue), 4),
+              "oof_auroc_break": round(_auroc(p_break, is_break), 4),
+              "cv_folds": k}
+
+    def _scored(mask: np.ndarray) -> dict[str, Any]:
+        return {**_policy_scores(mask, no_rag, rag, lam=lam, no_rag_acc=no_rag_acc,
+                                 oracle_acc=oracle_acc), **common}
+
+    return {"plug_in": _scored(plug), "tuned": _scored(tuned)}
+
+
+def _net_benefit_gate(
+    X: np.ndarray,
+    outcome: np.ndarray,
+    no_rag: np.ndarray,
+    rag: np.ndarray,
+    *,
+    lam: float,
+    no_rag_acc: float,
+    oracle_acc: float,
+    n_splits: int,
+    seed: int,
+    n_seeds: int,
+) -> dict[str, dict[str, Any]] | None:
+    """:func:`_cv_net_benefit_gate` averaged over ``n_seeds`` CV shuffles, per rule."""
+    runs = [
+        _cv_net_benefit_gate(X, outcome, no_rag, rag, lam=lam, no_rag_acc=no_rag_acc,
+                             oracle_acc=oracle_acc, n_splits=n_splits, seed=seed + s)
+        for s in range(max(1, n_seeds))
+    ]
+    runs = [r for r in runs if r is not None]
+    if not runs:
+        return None
+    return {
+        "net_benefit": _mean_over_seeds(
+            [r["plug_in"] for r in runs],
+            "mean over n_seeds CV shuffles; retrieve when P(rescue)-P(break) > lambda, nothing tuned"),
+        "net_benefit_tuned": _mean_over_seeds(
+            [r["tuned"] for r in runs],
+            "mean over n_seeds CV shuffles; cut on P(rescue)-P(break) tuned per-fold on training data only"),
     }
 
 
@@ -367,8 +494,16 @@ def gate_signal_analysis(
                                 no_rag_acc=no_rag_acc, oracle_acc=oracle_acc,
                                 n_splits=n_splits, seed=seed, n_seeds=n_seeds)
             learned["mlp_with_embedding"] = res if res is not None else {"note": "skipped"}
+    nb = _net_benefit_gate(X_scalar, _outcomes(no_rag, rag), no_rag, rag, lam=lam,
+                           no_rag_acc=no_rag_acc, oracle_acc=oracle_acc,
+                           n_splits=n_splits, seed=seed, n_seeds=n_seeds)
+    if nb is None:
+        nb = {name: {"note": "skipped (sklearn missing or too few rescues/breaks)"}
+              for name in ("net_benefit", "net_benefit_tuned")}
+    learned.update(nb)
 
     underpowered = n_pos < min_pos
+    underpowered_breaks = breaks < min_pos
     notes = [
         "threshold_policies are the best IN-SAMPLE operating point of a single signal "
         "(optimistic upper bound on that signal); learned_gates use nested CV and are held-out.",
@@ -379,6 +514,13 @@ def gate_signal_analysis(
             "recovered-fraction numbers are a plumbing dry-run, not a result -- the real "
             "train/val/test evaluation belongs at MIMIC scale."
         )
+    if underpowered_breaks:
+        notes.append(
+            f"UNDERPOWERED (breaks): only {breaks} break items (< {min_pos}); the net-benefit "
+            "gate's P(break|x) is not estimable enough to be a result."
+        )
+    if len({r.get("label_scoring") for r in records}) > 1:
+        notes.append("MIXED label_scoring methods across records; option-score features are not comparable.")
     if oracle_acc - no_rag_acc <= 1e-9:
         notes.append("No oracle headroom (Oracle_acc == NoRAG_acc); recovered_fraction is undefined.")
 
@@ -389,6 +531,7 @@ def gate_signal_analysis(
         "positive_rate": round(n_pos / n, 4),
         "lambda": lam,
         "underpowered": underpowered,
+        "underpowered_breaks": underpowered_breaks,
         "baseline": {
             "no_rag_acc": round(no_rag_acc, 4),
             "rag_always_acc": round(rag_acc, 4),
@@ -439,6 +582,8 @@ def load_records(
     rag_map = _rag_correct_by_qid(run_dir, arm) if (run_dir and arm) else {}
     out = []
     for r in rows:
+        if r.get("gate_error"):
+            continue  # the probe failed on this item, so its features are missing
         qid = str(r.get("qid")) if r.get("qid") is not None else None
         no_rag = r.get("no_rag_correct", r.get("em", r.get("correct")))
         rag = r.get("rag_correct")

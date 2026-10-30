@@ -75,8 +75,28 @@ arms at analysis time (§3).
 
 All three sources are OpenAI-compatible and already reachable through the existing clients.
 
-### 2.1 Answer-option logprobs → confidence / entropy / margin
-The chat client forwards `**params` into the payload
+### 2.1 Answer-label scores → confidence / entropy / margin / valid mass
+**Default: teacher-forced label scoring** (paper eq. labelscore). The probe appends every
+admissible label to the closed-book prompt and reads back `log P(label | prompt)`:
+`VLLMClient.score_labels` sends each label as a partial assistant turn
+(`continue_final_message=True`, `prompt_logprobs=0`, one request per label, cheap with prefix
+caching), and `LocalHFClient.score_labels` runs the forward pass itself. Then:
+
+```python
+from mgr.gate import features as gf
+variants = gf.label_variants(answer_type, option_letters)   # {"A": ("A",)} or {"yes": ("yes", "Yes"), ...}
+lps, usage = client.score_labels(model, messages, sorted({s for v in variants.values() for s in v}))
+probs, valid_mass = gf.option_distribution(gf.option_logprobs(lps, variants))
+```
+
+`probs` is normalized over the options (any option count, yes/no/maybe included); `valid_mass`
+is the probability of producing any valid label. Entropy is divided by `log|O|`. Each captured
+row records `label_scoring`, `option_probs` and `probe_answer` (the argmax), and the analysis
+notes if a file mixes methods.
+
+**Legacy: first-token top-k** (`GateCapture(label_scoring="topk")`), for clients that only
+expose `complete_text_logprobs`. It misses options outside the top-k and maps tokens by first
+character, so it is not the paper's probe. The chat client forwards `**params` into the payload
 ([`openai_compat.py:137`](../mgr/clients/openai_compat.py)), so request logprobs by passing:
 
 ```python
@@ -143,11 +163,13 @@ No-RAG `NullRetriever` arm acts on it):
 - **Client** — `VLLMClient.complete_text_logprobs(...)` ([`vllm.py`](../mgr/clients/vllm.py))
   requests logprobs and returns the `content` list. Unit-tested against a fake transport.
 - **Executor** — `RAGExecutor` gained a `gate: GateCapture` field
-  ([`executor.py`](../mgr/generate/executor.py)); on the No-RAG arm it takes the logprob path,
-  draws `n_samples` self-consistency completions, embeds the question, calls
-  `compute_features`, and merges the flat feature keys (+ `gate_cost_tokens`, kept off the
-  arm's token total) into each item row. A misconfig (capture on, client without
-  `complete_text_logprobs`) raises **before** the arm runs.
+  ([`executor.py`](../mgr/generate/executor.py)); on the No-RAG arm it scores the answer
+  labels, draws `n_samples` self-consistency completions (unparseable samples count as their
+  own category), embeds the question, calls `compute_features`, and merges the flat feature
+  keys (+ `gate_cost_tokens`, label scoring and samples, kept off the arm's token total) into
+  each item row. A misconfig (capture on, client without `score_labels`, or without
+  `complete_text_logprobs` in `topk` mode) raises **before** the arm runs. A probe that fails
+  on one item marks the row `gate_error`, and the analysis skips it.
 - **Sweep** — `Resources.gate` ([`sweep.py`](../mgr/sweep.py)) is threaded into every arm;
   only No-RAG captures.
 
@@ -198,15 +220,21 @@ Reports, as JSON:
 - **baseline** — No-RAG / RAG-always / **oracle** accuracy and the oracle gain;
 - **univariate_auroc** — AUROC of each oriented signal vs the rescueable label (the premise
   test: does uncertainty predict rescue?);
-- **threshold_policies** — always / never / entropy-τ / confidence-τ / margin-τ / sc_entropy-τ,
-  each with accuracy, retrieval rate, recovered fraction (best **in-sample** operating point);
-- **learned_gates** — logistic and MLP (scalars, and MLP+embedding), evaluated by
+- **threshold_policies** — always / never / entropy-τ / confidence-τ / margin-τ / valid_mass-τ /
+  sc_entropy-τ, each with accuracy, retrieval rate, recovered fraction (best **in-sample**
+  operating point);
+- **learned_gates** — rescue-only logistic and MLP (scalars, and MLP+embedding), evaluated by
   **nested CV** (τ tuned per-fold on training data, scored on held-out folds) and averaged
-  over seeds, with an `underpowered` flag when positives are scarce.
+  over seeds, with an `underpowered` flag when rescues are scarce;
+- **net_benefit / net_benefit_tuned** (also under `learned_gates`) — the four-outcome gate of
+  paper Prop. 1: multinomial logistic over {rescue, break, both right, both wrong}, retrieving
+  when P(rescue|x) − P(break|x) > λ (`net_benefit`, nothing tuned) or above a cut tuned on the
+  training folds (`net_benefit_tuned`). `oof_auroc_break` scores P(break|x) against breaks;
+  `underpowered_breaks` flags fewer than `min_pos` breaks.
 
-**How to read the premise test.** If free signals give AUROC ≈ 0.5, an MLP won't rescue it —
-the routing problem has no learnable pre-retrieval signal on this data. If AUROC climbs to
-~0.65–0.75, that justifies the trainable gate at MIMIC scale.
+**How to read the premise test.** A rescue AUROC near 0.5 does not by itself mean there is no
+usable signal: a gate can still gain accuracy by avoiding breaks, which the rescue label never
+sees. Compare `net_benefit` with `logistic`; the gap is what modelling breaks is worth.
 
 ---
 
